@@ -90,7 +90,7 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
             values[i, qp] = valsRaw[i, 1]
             gradients[i, qp] = Vec{rdim}(j -> (derivsRaw[i * (rdim) - (rdim - j), 1]))
             hessians[i, qp] = SymmetricTensor{2, rdim}(
-                rdim == 2 ? (derivs2Raw[3i - 2, 1], derivs2Raw[3i, 1], derivs2Raw[3i - 1, 1]) : (derivs2Raw[i, 1])
+                rdim == 2 ? (derivs2Raw[3i - 2, 1], derivs2Raw[3i, 1], derivs2Raw[3i - 1, 1]) : (derivs2Raw[i, 1], )
             )
         end
     end

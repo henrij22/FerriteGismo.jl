@@ -26,11 +26,23 @@ jobs:
       matrix:
         version:
           - '1.12'
-          #- 'pre'
+          - 'pre'
         os:
           - ubuntu-latest
+          - windows-latest
+          - macos-latest
         arch:
-          - x64 
+          - x64
+        exclude:
+          - os: macos-latest
+            arch: x64
+        include:
+          - os: macos-latest
+            arch: aarch64
+            version: '1.12'
+          - os: macos-latest
+            arch: aarch64
+            version: 'pre' 
 
     steps:
       - uses: actions/checkout@v6
@@ -39,12 +51,6 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-     # used for private repo, deactivate when repos are public
-      - name: Configure SSH agent
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: |
-            ${{ secrets.OLAFLAB_DEPLOY }}
       - uses: julia-actions/julia-buildpkg@v1
         with:
           localregistry: |
