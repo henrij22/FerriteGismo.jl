@@ -1,5 +1,4 @@
 ./LICENSE
-./.JuliaFormatter.toml
 ./README.md
 ./CITATION.bib
 ./src/FerriteGismo.jl
