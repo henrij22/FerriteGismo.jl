@@ -1,0 +1,7 @@
+./LICENSE
+./.JuliaFormatter.toml
+./README.md
+./CITATION.bib
+./src/OlafLabIGA.jl
+./test/Aqua.jl
+./Project.toml

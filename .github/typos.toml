@@ -1,0 +1,7 @@
+[default.extend-identifiers]
+ele = "ele"
+eles = "eles"
+
+[default.extend-words]
+ele = "ele"
+eles = "eles"

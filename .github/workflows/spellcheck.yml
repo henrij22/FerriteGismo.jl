@@ -1,0 +1,14 @@
+name: Spell Check
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  typos-check:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check spelling
+        uses: crate-ci/typos@v1.43.5
+        with:
+          config: ./.github/typos.toml

@@ -1,0 +1,25 @@
+name: Check lowercase filenames
+
+on:
+  push:
+    branches:
+      - main
+    tags: ['*']
+  pull_request:
+
+jobs:
+  check-filenames:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Check lowercase filenames
+        run: |
+          python .github/scripts/check_lowercase_filenames.py

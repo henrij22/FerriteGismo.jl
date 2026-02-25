@@ -1,0 +1,28 @@
+name = "OlafLabIGA"
+uuid = "a548586d-644c-43c2-b402-969e06ddf6f5"
+version = "0.1.0"
+authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
+
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+Ferrite = "c061ca5d-56c9-439f-9c0e-210fe06d3992"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+Tensors = "48a634ad-e948-5137-8d70-aa71f2a747f4"
+TinyGismo = "5750890c-44ac-400c-9e9d-1788b5a8ead6"
+
+[compat]
+ArgCheck = "2"
+Ferrite = "1"
+Reexport = "1"
+Tensors = "1"
+TinyGismo = "0.2"
+julia = "1.11"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
+
+[targets]
+test = ["Test", "TestItems", "TestItemRunner"]
