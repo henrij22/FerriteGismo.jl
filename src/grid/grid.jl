@@ -19,7 +19,7 @@ function IGAGrid{sdim, rdim}(geometry::G) where {G <: gsGeometry, sdim, rdim}
     nodes = IGACell[] # initialize with undef
     basis = TinyGismo.basis(geometry)
 
-    kvs = map(OlafLabIGA.KnotSpanWrapper{rdim}, knotSpans(basis))
+    kvs = map(FerriteGismo.KnotSpanWrapper{rdim}, knotSpans(basis))
 
     # kvs = KnotSpan{rdim}[]
     actives = gsMatrix{Int32}()

@@ -1,4 +1,4 @@
-module OlafLabIGA
+module FerriteGismo
 
 # ==============================================================================
 # DEPENDENCIES
@@ -65,4 +65,4 @@ export IGACellValues
 # Utility
 export interpolate
 
-end # module OlafLabIGA
+end # module FerriteGismo

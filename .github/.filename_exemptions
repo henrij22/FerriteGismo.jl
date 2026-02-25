@@ -2,6 +2,6 @@
 ./.JuliaFormatter.toml
 ./README.md
 ./CITATION.bib
-./src/OlafLabIGA.jl
+./src/FerriteGismo.jl
 ./test/Aqua.jl
 ./Project.toml
