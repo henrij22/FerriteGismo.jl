@@ -16,7 +16,7 @@ ArgCheck = "2"
 Ferrite = "1"
 Reexport = "1"
 Tensors = "1"
-TinyGismo = "0.2"
+TinyGismo = "0.2.1"
 julia = "1.11"
 
 [extras]

@@ -10,6 +10,9 @@ struct IGAGrid{sdim, rdim, G <: gsGeometry} <: Ferrite.AbstractGrid{sdim}
     knotSpans::Vector{KnotSpanWrapper{rdim}}
 end
 
+get_sdim(::IGAGrid{sdim}) where {sdim} = sdim::Int
+get_rdim(::IGAGrid{sdim, rdim}) where {sdim, rdim} = rdim::Int
+
 IGAGrid{dim}(geometry::gsGeometry) where {dim} = IGAGrid{dim, dim}(geometry)
 
 function IGAGrid{sdim, rdim}(geometry::G) where {G <: gsGeometry, sdim, rdim}
@@ -21,13 +24,10 @@ function IGAGrid{sdim, rdim}(geometry::G) where {G <: gsGeometry, sdim, rdim}
 
     kvs = map(FerriteGismo.KnotSpanWrapper{rdim}, knotSpans(basis))
 
-    # kvs = KnotSpan{rdim}[]
     actives = gsMatrix{Int32}()
     for kv in kvs
-        # activeInCell = copyMatrix(actives(Gismo.basis(geometry), eles[:, 2i - 1]))[:, 1] .+ 1
         active!(basis, Vector(kv.lower), actives)
         push!(nodes, IGACell{rdim}(toVector(actives)))
-        # push!(knotSpans, KnotSpan{rdim}(Vec{rdim}(eles[:, 2i - 1]), Vec{rdim}(eles[:, 2i])))
     end
 
     return IGAGrid{sdim, rdim, G}(nodes, cc, geometry, kvs)

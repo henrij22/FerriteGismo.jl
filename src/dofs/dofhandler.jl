@@ -55,15 +55,17 @@ function _close_subdofhandler_iga!(
         push!(v, Int[])
     end
 
-    knotSpans = dh.grid.knotSpans
     current_dof_counter = 0
+    actives = gsMatrix{Int32}()
     for ip in sdh.field_interpolations
+        kvs = map(FerriteGismo.KnotSpanWrapper{get_rdim(dh.dh.grid)}, knotSpans(Ferrite.get_base_interpolation(ip).basis))
         ncomp = Ferrite.n_components(ip)
         basisSize = TinyGismo.size(Ferrite.get_base_interpolation(ip).basis) * ncomp
 
-        for (i, knotSpan) in enumerate(knotSpans)
+        for (i, kv) in enumerate(kvs)
             if ip isa VectorizedInterpolation
-                activeInCell = dh.dh.grid.cells[i].nodes .+ current_dof_counter
+                active!(Ferrite.get_base_interpolation(ip).basis, Vector(kv.lower), actives)
+                activeInCell = toVector(actives) .+ current_dof_counter
 
                 # Interweave dofs u1x, u1y, u1z, u2x, ...
                 for j in 1:length(activeInCell)
@@ -72,7 +74,8 @@ function _close_subdofhandler_iga!(
                     end
                 end
             else
-                activeInCell = dh.dh.grid.cells[i].nodes .+ current_dof_counter
+                active!(ip.basis, Vector(kv.lower), actives)
+                activeInCell = toVector(actives) .+ current_dof_counter
                 push!(v[i], activeInCell...)
             end
         end
@@ -80,7 +83,7 @@ function _close_subdofhandler_iga!(
         current_dof_counter += basisSize
     end
 
-    for i in eachindex(knotSpans)
+    for i in eachindex(dh.grid.knotSpans)
         push!(dh.cell_dofs, v[i]...)
     end
 

@@ -1,10 +1,7 @@
 mutable struct IGAInterpolation{shape, order, B, dim} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
-    # degree::NTuple{dim, Int}
-    # elements::Matrix{Float64} # I think this is redundant -> See grid
     currentElement::KnotSpanWrapper{dim}
-    # geometry::G
 end
 
 struct IGAMapping end
@@ -12,11 +9,8 @@ Ferrite.mapping_type(::IGAInterpolation) = IGAMapping()
 
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
-    # eles = copyMatrix(getElements(basis))
 
     currentElement = KnotSpanWrapper{dim}(first(knotSpans(basis)))
-
-    #  degrees= ntuple(i -> TinyGismo.degree(basis), dim)
     if dim == 1
         order = TinyGismo.degree(basis)
         nbasefuns = numActive(basis) # might be a problem with tensorbasis
@@ -34,7 +28,9 @@ end
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
-function Ferrite.reference_shape_values!(values::AbstractVector, ip::IGAInterpolation, qr_points::AbstractVector{<:Vec})
+function Ferrite.reference_shape_values!(
+        values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
+    ) where {rdim, IP <: IGAInterpolation}
     @boundscheck checkbounds(values, 1:getnbasefunctions(ip))
 
     valsRaw = gsMatrix()
@@ -42,7 +38,7 @@ function Ferrite.reference_shape_values!(values::AbstractVector, ip::IGAInterpol
         ξ = ref_to_param(ξref, ip.currentElement.lower, ip.currentElement.upper)
         eval!(ip.basis, Vector(ξ), valsRaw)
         for i in 1:getnbasefunctions(ip)
-            values[i, qp] = valsRaw[i]
+            values[i, qp] = valsRaw[i, 1]
         end
     end
     return
@@ -90,22 +86,17 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
             values[i, qp] = valsRaw[i, 1]
             gradients[i, qp] = Vec{rdim}(j -> (derivsRaw[i * (rdim) - (rdim - j), 1]))
             hessians[i, qp] = SymmetricTensor{2, rdim}(
-                rdim == 2 ? (derivs2Raw[3i - 2, 1], derivs2Raw[3i, 1], derivs2Raw[3i - 1, 1]) : (derivs2Raw[i, 1], )
+                rdim == 2 ? (derivs2Raw[3i - 2, 1], derivs2Raw[3i, 1], derivs2Raw[3i - 1, 1]) : (derivs2Raw[i, 1],)
             )
         end
     end
     return
 end
 
-#######
-# Vectorized
-#######
-
+# TODO
 # function Ferrite.default_geometric_interpolation(
-#         ip::IGAInterpolation{
-#             shape, order,
-#         }
-#     ) where {order, dim, shape <: Ferrite.AbstractRefShape{dim}}
+#         ip::IGAInterpolation{shape}
+#     ) where {shape <: Ferrite.AbstractRefShape{dim}}
 #     return VectorizedInterpolation{dim}(
 #         IGAInterpolation{shape, order}(
 #             Gismo.basis(ip.geometry), ip.geometry
