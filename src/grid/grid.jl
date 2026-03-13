@@ -37,17 +37,17 @@ end
 function toPhysical(grid::IGAGrid{sdim}, x) where {sdim}
     result = zero(Vec{sdim})
 
-    shape_values = gsMatrix()
-    actives = gsMatrix{Int32}()
+    shape_values_gs = gsMatrix()
+    actives_gs = gsMatrix{Int32}()
 
-    active!(TinyGismo.basis(grid.geometry), x, actives)
-    TinyGismo.eval!(TinyGismo.basis(grid.geometry), x, shape_values)
+    active!(TinyGismo.basis(grid.geometry), x, actives_gs)
+    TinyGismo.eval!(TinyGismo.basis(grid.geometry), x, shape_values_gs)
 
-    shape_values = toVector(shape_values)
-    actives = toVector(actives)
+    shape_values = toVector(shape_values_gs)
+    actives = toVector(actives_gs)
 
-    for i in eachindex(shape_values)
-        result += shape_values[i] * grid.nodes[actives[i]].x
+    for (shape_value, idx) in zip(shape_values, actives)
+        result += shape_value * grid.nodes[idx].x
     end
     return result
 end
