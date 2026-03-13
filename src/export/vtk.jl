@@ -21,7 +21,7 @@ function Ferrite._assemble_L2_matrix(dh::IGADofHandler, qrs_lhs::Vector{<:Quadra
     assembler = start_assemble(M)
     for (sdh, qr_lhs) in zip(dh.subdofhandlers, qrs_lhs)
         ip_fun = only(sdh.field_interpolations)
-        ip_geo = Ferrite.default_geometric_interpolation(ip_fun)
+        ip_geo = IGAInterpolation{Ferrite.RefHypercube{get_rdim(dh.dh.grid)}}(TinyGismo.basis(dh.dh.grid.geometry))
         cv = CellValues(qr_lhs, ip_fun, ip_geo; update_gradients = false)
         Ferrite._assemble_L2_matrix!(assembler, cv, sdh)
     end
@@ -41,12 +41,12 @@ function L2ProjectorIGA(grid::IGAGrid)
 end
 
 function Ferrite.L2Projector(
-        ip::IGAInterpolation,
-        grid::IGAGrid;
+        ip::IP,
+        grid::GRID;
         qr_lhs::QuadratureRule = _mass_qr(ip),
         set = Ferrite.OrderedSet(1:getncells(grid)),
         geom_ip = nothing
-    )
+    ) where {GRID <: IGAGrid, IP <: IGAInterpolation}
     geom_ip === nothing ||
         @warn("Providing geom_ip is deprecated, the geometric interpolation of the cells with always be used")
     proj = L2ProjectorIGA(grid)
@@ -134,7 +134,7 @@ function Ferrite._project(
     f = zeros(ndofs(proj.dh), M)
     for (sdh, qr_rhs) in zip(proj.dh.subdofhandlers, qrs_rhs)
         ip_fun = only(sdh.field_interpolations)
-        ip_geo = Ferrite.default_geometric_interpolation(ip_fun)
+        ip_geo = IGAInterpolation{Ferrite.RefHypercube{get_rdim(proj.dh.grid)}}(TinyGismo.basis(proj.dh.grid.geometry))
         cv = CellValues(qr_rhs, ip_fun, ip_geo; update_gradients = false)
         Ferrite.assemble_proj_rhs!(f, cv, sdh, vars)
     end
@@ -146,47 +146,6 @@ function Ferrite._project(
     make_T(vals) = T <: AbstractTensor ? T(Tuple(vals)) : vals[1]
     return T[make_T(x) for x in Base.eachrow(projected_vals)]
 end
-
-# function Ferrite.assemble_proj_rhs!(
-#         f::Matrix, cellvalues::CellValues{FV}, sdh::SubDofHandler, vars::Union{AbstractVector, AbstractDict}) where {FV <: Ferrite.FunctionValues{Order, IP} where {Order, IP <: IGAInterpolation}}
-#     # Assemble the multi-column rhs, f = ∭( v ⋅ x̂ )dΩ
-#     # The number of columns corresponds to the length of the data-tuple in the tensor x̂.
-#     M = size(f, 2)
-#     n = getnbasefunctions(cellvalues)
-#     fe = zeros(n, M)
-#     nqp = getnquadpoints(cellvalues)
-
-#     get_data(x::AbstractTensor, i) = x.data[i]
-#     get_data(x::Number, _) = x
-
-#     dh = IGADofHandler(sdh.dh, Int[])
-
-#     ## Assemble contributions from each cell
-#     for cell in CellIterator(dh)
-#         fill!(fe, 0)
-#         cell_vars = vars[cellid(cell)]
-#         length(cell_vars) == nqp ||
-#             error("The number of variables per cell doesn't match the number of quadrature points")
-#         reinit!(cellvalues, cell)
-
-#         for q_point in 1:nqp
-#             dΩ = getdetJdV(cellvalues, q_point)
-#             qp_vars = cell_vars[q_point]
-#             for i in 1:n
-#                 v = shape_value(cellvalues, q_point, i)
-#                 for j in 1:M
-#                     fe[i, j] += v * get_data(qp_vars, j) * dΩ
-#                 end
-#             end
-#         end
-
-#         # Assemble cell contribution
-#         for (num, dof) in enumerate(celldofs(cell))
-#             f[dof, :] += fe[num, :]
-#         end
-#     end
-#     return
-# end
 
 function Ferrite.write_projection(vtk::VTKGridFile, proj::L2ProjectorIGA, vals, name)
     if Ferrite.write_discontinuous(vtk)

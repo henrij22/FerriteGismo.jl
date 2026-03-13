@@ -50,7 +50,9 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
+        with:
+          cache-registries: False
       - uses: julia-actions/julia-buildpkg@v1
         with:
           localregistry: |

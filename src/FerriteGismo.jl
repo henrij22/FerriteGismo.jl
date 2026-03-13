@@ -42,7 +42,7 @@ include("fevalues/cellvalues.jl")
 include("fevalues/geometry_mapping.jl")
 
 # Export
-# include("export/vtk.jl")
+include("export/vtk.jl")
 
 # ==============================================================================
 # EXPORTS
