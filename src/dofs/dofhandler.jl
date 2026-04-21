@@ -162,3 +162,6 @@ function _evaluate_at_grid_nodes_iga!(
     end
     return data
 end
+
+
+Ferrite.celldofs!(x::AbstractVector{Int64}, dh::FerriteGismo.IGADofHandler, i::Int64) = celldofs!(x, dh.dh, i)

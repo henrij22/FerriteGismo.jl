@@ -15,9 +15,7 @@ end
     )
     Jinv = Ferrite.calculate_Jinv(Ferrite.getjacobian(mapping_values))
     @inbounds for j in 1:getnbasefunctions(funvals)
-        funvals.Nx[j, q_point] = funvals.Nξ[j, q_point]
-        # funvals.dNdx[j, q_point] = funvals.dNdξ[j, q_point] ⋅ Jinv # TODO via Tensors.jl
-        funvals.dNdx[j, q_point] = Ferrite.dothelper(funvals.dNdξ[j, q_point], Jinv)
+        funvals.dNdx[j, q_point] = funvals.dNdξ[j, q_point] ⋅ Jinv
     end
     return nothing
 end
@@ -33,7 +31,7 @@ end
     Jinv_otimesu_Jinv = is_vector_valued && difforder > 1 ? Ferrite.otimesu(Jinv, Jinv) : nothing
     @inbounds for j in 1:getnbasefunctions(funvals)
         funvals.Nx[j, q_point] = funvals.Nξ[j, q_point]
-        dNdx = Ferrite.dothelper(funvals.dNdξ[j, q_point], Jinv)
+        dNdx = funvals.dNdξ[j, q_point] ⋅ Jinv
         funvals.dNdx[j, q_point] = dNdx
 
         if rdim == sdim
@@ -57,7 +55,7 @@ end
     # (rdim != sdim) && error("hessian for embedded elements not implemented (rdim=$rdim, sdim=$sdim)")
     H = rdim == sdim ? zero(Ferrite.otimes_returntype(eltype(x), eltype(geo_mapping.d2Mdξ2))) : nothing
     @inbounds for j in 1:Ferrite.getngeobasefunctions(geo_mapping)
-        J += Ferrite.otimes_helper(x[j], geo_mapping.dMdξ[j, q_point])
+        J += x[j] ⊗ geo_mapping.dMdξ[j, q_point]
         if sdim == rdim
             H += x[j] ⊗ geo_mapping.d2Mdξ2[j, q_point]
         end
