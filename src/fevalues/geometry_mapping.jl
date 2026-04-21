@@ -15,6 +15,7 @@ end
     )
     Jinv = Ferrite.calculate_Jinv(Ferrite.getjacobian(mapping_values))
     @inbounds for j in 1:getnbasefunctions(funvals)
+        funvals.Nx[j, q_point] = funvals.Nξ[j, q_point]
         funvals.dNdx[j, q_point] = funvals.dNdξ[j, q_point] ⋅ Jinv
     end
     return nothing
