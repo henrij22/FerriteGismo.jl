@@ -1,6 +1,6 @@
 name = "FerriteGismo"
 uuid = "a548586d-644c-43c2-b402-969e06ddf6f5"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
 
 [deps]
