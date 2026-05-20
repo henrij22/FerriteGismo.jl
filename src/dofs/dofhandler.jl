@@ -149,7 +149,7 @@ function _evaluate_at_grid_nodes_iga!(
     uniformGrid = parameterSpaceGrid(sdh.dh.grid)
 
     for (nodeid, node) in enumerate(getnodes(uniformGrid))
-        val = interpolate(ip.basis, u, node.x; offset = offset)
+        val = interpolate(_maybeDeref(ip.basis), u, node.x; offset = offset)
         if data isa Matrix # VTK
             # data[1:length(val), nodeid] .= val
             # data[(length(val) + 1):end, nodeid] .= 0 # purge the NaN

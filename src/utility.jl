@@ -39,3 +39,6 @@ function interpolate(basis::gsBasis, u::AbstractVector{T}, x::AbstractVector; of
     end
     return result
 end
+
+_maybeDeref(obj::TinyGismo.CxxWrap.CxxWrapCore.ConstCxxRef) = obj[]
+_maybeDeref(obj) = obj
