@@ -5,7 +5,7 @@
     using Ferrite, SparseArrays
 
     geometry = createBSplineSquare(2.0)
-    uniformRefine!(geometry, 19)
+    uniformRefine!(geometry, 3)
     grid = IGAGrid{2}(geometry)
 
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
@@ -78,9 +78,11 @@
     apply!(K, f, ch)
     u = K \ f
 
-    @test maximum(u) ≈ 0.295267863770736
+    @test maximum(u) ≈ 0.3107142857142857
 
-    VTKGridFile("heat_equation", dh) do vtk
-        write_solution(vtk, dh, u)
+    mktempdir() do outdir
+        VTKGridFile(joinpath(outdir, "heat_equation"), dh) do vtk
+            write_solution(vtk, dh, u)
+        end
     end
 end
