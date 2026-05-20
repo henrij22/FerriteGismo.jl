@@ -11,7 +11,7 @@ FerriteGismo.jl brings Isogeometric Analysis capabilities to the Ferrite finite 
 
 This package is under active development and relies on internal Ferrite.jl functionality. Note:
 
-- The `ConstraintHandler` is not currently supported and will require future redesign
+- The `ConstraintHandler` is not currently fully supported and will require future redesign
 - API is subject to change as the package matures
 - Implementing a custom `IGADofHandler` was also not a good idea and should be worked on in the future
 
@@ -19,7 +19,6 @@ This package is under active development and relies on internal Ferrite.jl funct
 
 - **IGA Grids** (`IGAGrid`): IGA grid implementation compatible with `Ferrite.AbstractGrid`
 - **IGA Interpolations** (`IGAInterpolation`): B-spline and NURBS basis functions as Ferrite interpolations
-- **IGA Cell Values** (`IGACellValues`): Integration of IGA basis functions with Ferrite's FEValues framework
 - **Geometric Utilities**: Access to knot vectors, degree elevation, knot refinement, and more
 - **VTK Export**: Visualization support for IGA results
 

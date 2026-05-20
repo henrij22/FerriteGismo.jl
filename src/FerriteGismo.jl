@@ -13,7 +13,6 @@ using ArgCheck
 
 # Backend not exported
 using TinyGismo: gsBasis, gsGeometry
-# using Gismo: numElements, copyMatrix, Basis, Geometry, getElements, actives, compute, boundary
 
 # Backend packages (re-exported)
 @reexport using Ferrite
@@ -33,6 +32,7 @@ include("grid/grid.jl")
 
 # Dofs
 include("dofs/dofhandler.jl")
+include("dofs/constraints.jl")
 
 # Iterators
 include("iterators.jl")
@@ -54,7 +54,7 @@ export IGAGrid, numElements, parameterSpaceGrid, numElementsPerDirection
 # Elements
 
 # Dofs
-export IGADofHandler, fixBoundary!
+export IGADofHandler, fixEdge!
 
 # Interpolations
 export IGAInterpolation
