@@ -68,7 +68,7 @@ uniformRefine!(geometry, 3)   # h-refinement
 grid = IGAGrid{2}(geometry)
 ip   = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
 qr   = QuadratureRule{RefQuadrilateral}(2)
-cv   = CellValues(qr, ip, ip)
+cv   = CellValues(qr, ip, ip^2)
 
 # Distribute the degrees of freedom (just like in Ferrite)
 dh = IGADofHandler(grid)

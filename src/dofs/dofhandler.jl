@@ -89,12 +89,14 @@ function _close_subdofhandler_iga!(
         for (i, kv) in enumerate(kvs)
             if ip isa VectorizedInterpolation
                 active!(Ferrite.get_base_interpolation(ip).basis, Vector(kv.lower), actives)
-                activeInCell = toVector(actives) .+ current_dof_counter
+                activeInCell = toVector(actives)
 
                 # Interweave dofs u1x, u1y, u1z, u2x, ...
+                # `current_dof_counter` is a dof offset, so it is added outside the
+                # component interleaving (matching fixEdge! and the grid-node evaluation).
                 for j in 1:length(activeInCell)
                     for c in 1:ncomp
-                        push!(v[i], ncomp * activeInCell[j] + c - ncomp)
+                        push!(v[i], current_dof_counter + ncomp * (activeInCell[j] - 1) + c)
                     end
                 end
             else
@@ -208,7 +210,7 @@ function _evaluate_at_grid_nodes_iga!(
         val = zero(Vec{vdim, T})
         for k in eachindex(shape_values)
             p = actives[k]
-            comps = ntuple(c -> u[vdim * (p + offset) + c - vdim], vdim)
+            comps = ntuple(c -> u[offset + vdim * (p - 1) + c], vdim)
             val += shape_values[k] * Vec{vdim, T}(comps)
         end
 
@@ -222,6 +224,5 @@ function _evaluate_at_grid_nodes_iga!(
     end
     return data
 end
-
 
 Ferrite.celldofs!(x::AbstractVector{Int64}, dh::FerriteGismo.IGADofHandler, i::Int64) = celldofs!(x, dh.dh, i)

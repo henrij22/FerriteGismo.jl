@@ -64,7 +64,7 @@ function fixEdge!(
         # Global control-point index of `p` within this field, matching the interleaved
         # dof numbering (u1x, u1y, u2x, u2y, ...) used when closing the IGADofHandler.
         for c in comps
-            dof = ncomp * (p + offset) + c - ncomp
+            dof = offset + ncomp * (p - 1) + c
             Ferrite.add_prescribed_dof!(ch, dof, 0.0)
         end
     end

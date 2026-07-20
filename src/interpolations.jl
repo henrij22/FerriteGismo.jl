@@ -119,19 +119,16 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
 end
 
 
-# THis depends actually on the cell
+# This depends actually on the cell
 Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
 
 # ==============================================================================
 # Vector-valued (vectorized) IGA interpolations
 # ==============================================================================
-# A `VectorizedInterpolation` (e.g. `ip^2`) wrapping an `IGAInterpolation` is used for
-# vector fields such as displacements. Ferrite's generic fallback evaluates such
-# interpolations one basis function at a time via automatic differentiation, which requires
-# a scalar `reference_shape_value(::IGAInterpolation, ξ, i)` method that does not exist for
-# spline bases (they are evaluated for all active functions at once). We therefore provide
-# specialized batch methods that evaluate the scalar spline basis once and expand the result
-# to the vectorized layout (node-major, component-minor: u1x, u1y, u2x, u2y, ...).
+# Vector fields (e.g. `ip^2`) can't use Ferrite's per-basis-function AD fallback, since that
+# needs a scalar `reference_shape_value(::IGAInterpolation, ξ, i)` which spline bases lack
+# (all active functions are evaluated at once). We instead evaluate the scalar basis once and
+# expand it to the vectorized layout (node-major, component-minor: u1x, u1y, u2x, u2y, ...).
 
 # The vectorized interpolation must use the IGA mapping, not the identity mapping.
 Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
