@@ -5,11 +5,10 @@ on:
       - main
     tags: ['*']
   pull_request:
-  workflow_dispatch:
 permissions:
-  contents: write      # Required to push the built docs to the gh-pages branch
+  contents: write  # Required when authenticating with `GITHUB_TOKEN`, not needed when authenticating with SSH deploy keys
   pull-requests: read  # Required when using `push_preview=true`
-  statuses: write      # Optional, used to report documentation build statuses
+  statuses: write  # Optional, used to report documentation build statuses
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -17,28 +16,20 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   docs:
-    name: Documentation
+    name: Julia 1.12 - ubuntu-latest
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      JULIA_PKG_USE_CLI_GIT: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.12'
       - uses: julia-actions/cache@v3
       - name: Install dependencies
-        run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.Registry.add("General")
-            Pkg.Registry.add(RegistrySpec(url = "https://github.com/henrij22/JuliaRegistry.git"))
-            Pkg.develop(PackageSpec(path = pwd()))
-            Pkg.instantiate()
-            Pkg.precompile()'
+        run: julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
       - name: Build and deploy
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ORGA_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.FERRITE_GISMO_WRITE }}
           GKSwstype: '100'
         run: julia --project=docs --color=yes docs/make.jl

@@ -14,7 +14,7 @@ Depth = 2:2
 ## Grid
 
 An [`IGAGrid`](@ref) wraps a G+Smo geometry and implements the `Ferrite.AbstractGrid`
-interface. Its cells correspond to knot spans (Bézier elements) and its "nodes" are the
+interface. Its cells correspond to knot spans (IGA elements) and its "nodes" are the
 spline control points.
 
 ```@docs
