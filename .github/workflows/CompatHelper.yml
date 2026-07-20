@@ -40,6 +40,6 @@ jobs:
           CompatHelper.main()
         shell: julia --color=yes {0}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMPATHELPER_PRIV: ${{ secrets.DOCUMENTER_KEY }}
+          GITHUB_TOKEN: ${{ secrets.DOCUMENTER_TOKEN }}
+          COMPATHELPER_PRIV: ${{ secrets.FERRITE_GISMO_WRITE }}
           # COMPATHELPER_PRIV: ${{ secrets.COMPATHELPER_PRIV }}

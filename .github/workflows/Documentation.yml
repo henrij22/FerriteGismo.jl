@@ -29,7 +29,7 @@ jobs:
         run: julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
       - name: Build and deploy
         env:
-          GITHUB_TOKEN: ${{ secrets.ORGA_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DOCUMENTER_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.FERRITE_GISMO_WRITE }}
           GKSwstype: '100'
         run: julia --project=docs --color=yes docs/make.jl
