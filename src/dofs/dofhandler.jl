@@ -1,3 +1,27 @@
+"""
+    IGADofHandler(grid::IGAGrid)
+
+A degree-of-freedom handler for [`IGAGrid`](@ref)s. It mirrors the interface of the
+regular `Ferrite.DofHandler` — fields are added with `add!` and the handler is finalized
+with `close!` — but distributes the degrees of freedom according to the globally numbered
+spline control points instead of Lagrange nodes.
+
+Internally it wraps a `Ferrite.DofHandler` and forwards most property accesses to it, so
+that downstream Ferrite functionality (`allocate_matrix`, `CellIterator`, `celldofs!`,
+`ndofs`, …) keeps working.
+
+# Example
+```julia
+dh = IGADofHandler(grid)
+add!(dh, :u, ip)
+close!(dh)
+```
+
+!!! warning
+    The `IGADofHandler` relies on internal Ferrite functionality and only supports a
+    single subdofhandler / cell type. See also [`fixEdge!`](@ref) for prescribing
+    homogeneous Dirichlet conditions on the parametric edges.
+"""
 mutable struct IGADofHandler{dim, G <: IGAGrid{dim}} <: Ferrite.AbstractDofHandler
     dh::DofHandler{dim, G}
     field_offsets::Vector{Int}
@@ -153,6 +177,42 @@ function _evaluate_at_grid_nodes_iga!(
         if data isa Matrix # VTK
             # data[1:length(val), nodeid] .= val
             # data[(length(val) + 1):end, nodeid] .= 0 # purge the NaN
+            dataview = @view data[:, nodeid]
+            fill!(dataview, 0) # purge the NaN
+            Ferrite.toparaview!(dataview, val)
+        else
+            data[nodeid] = val
+        end
+    end
+    return data
+end
+
+function _evaluate_at_grid_nodes_iga!(
+        data::Union{Vector, Matrix}, sdh::SubDofHandler,
+        u::AbstractVector{T}, ip::VectorizedInterpolation{vdim, shape, order, <:IGAInterpolation},
+        offset::Int
+    ) where {T, vdim, shape, order}
+    uniformGrid = parameterSpaceGrid(sdh.dh.grid)
+    basis = _maybeDeref(ip.ip.basis)
+
+    shape_values_gs = gsMatrix()
+    actives_gs = gsMatrix{Int32}()
+    for (nodeid, node) in enumerate(getnodes(uniformGrid))
+        x = Vector(node.x)
+        active!(basis, x, actives_gs)
+        TinyGismo.eval!(basis, x, shape_values_gs)
+        shape_values = toVector(shape_values_gs)
+        actives = toVector(actives_gs)
+
+        # Interleaved dof numbering (u1x, u1y, u2x, u2y, ...), see the IGADofHandler `close!`
+        val = zero(Vec{vdim, T})
+        for k in eachindex(shape_values)
+            p = actives[k]
+            comps = ntuple(c -> u[vdim * (p + offset) + c - vdim], vdim)
+            val += shape_values[k] * Vec{vdim, T}(comps)
+        end
+
+        if data isa Matrix # VTK
             dataview = @view data[:, nodeid]
             fill!(dataview, 0) # purge the NaN
             Ferrite.toparaview!(dataview, val)

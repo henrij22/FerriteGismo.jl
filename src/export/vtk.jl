@@ -28,6 +28,18 @@ function Ferrite._assemble_L2_matrix(dh::IGADofHandler, qrs_lhs::Vector{<:Quadra
     return M
 end
 
+"""
+    L2ProjectorIGA <: Ferrite.AbstractProjector
+
+IGA counterpart of Ferrite's `L2Projector`, used to project (typically discontinuous)
+quadrature-point data such as stresses onto a continuous spline field for postprocessing
+and VTK export.
+
+It is constructed indirectly through `Ferrite.L2Projector(ip::IGAInterpolation, grid::IGAGrid)`
+and stores the Cholesky factorization of the spline mass matrix together with the internal
+[`IGADofHandler`](@ref) and the left-/right-hand-side quadrature rules. Use `project` to
+obtain the projected nodal values and `write_projection` to export them.
+"""
 mutable struct L2ProjectorIGA <: Ferrite.AbstractProjector
     M_cholesky::Any #::SuiteSparse.CHOLMOD.Factor{Float64}
     dh::IGADofHandler

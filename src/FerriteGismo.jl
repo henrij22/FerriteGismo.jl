@@ -59,9 +59,6 @@ export IGADofHandler, fixEdge!
 # Interpolations
 export IGAInterpolation
 
-# FE Values
-export IGACellValues
-
 # Utility
 export interpolate
 

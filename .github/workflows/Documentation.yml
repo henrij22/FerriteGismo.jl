@@ -1,0 +1,44 @@
+name: Documentation
+on:
+  push:
+    branches:
+      - main
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: write      # Required to push the built docs to the gh-pages branch
+  pull-requests: read  # Required when using `push_preview=true`
+  statuses: write      # Optional, used to report documentation build statuses
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      JULIA_PKG_USE_CLI_GIT: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v3
+      - name: Install dependencies
+        run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.Registry.add("General")
+            Pkg.Registry.add(RegistrySpec(url = "https://github.com/henrij22/JuliaRegistry.git"))
+            Pkg.develop(PackageSpec(path = pwd()))
+            Pkg.instantiate()
+            Pkg.precompile()'
+      - name: Build and deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GKSwstype: '100'
+        run: julia --project=docs --color=yes docs/make.jl

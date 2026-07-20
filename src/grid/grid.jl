@@ -1,8 +1,45 @@
 # Nodes are the indices of active basefunctions
+"""
+    IGACell{rdim} <: Ferrite.AbstractCell{Ferrite.RefHypercube{rdim}}
+
+Internal cell type of an [`IGAGrid`](@ref), representing one knot span (Bézier element) of
+reference dimension `rdim`. Its `nodes` field stores the global indices of the spline basis
+functions that are active on the knot span; these play the role of the cell's "nodes" in
+the Ferrite sense and are what `celldofs` are derived from.
+"""
 struct IGACell{rdim} <: Ferrite.AbstractCell{Ferrite.RefHypercube{rdim}}
     nodes::Vector{Int}
 end
 
+"""
+    IGAGrid{sdim}(geometry::gsGeometry)
+    IGAGrid{sdim, rdim}(geometry::gsGeometry)
+
+An Isogeometric Analysis (IGA) grid backed by a G+Smo geometry, implementing the
+[`Ferrite.AbstractGrid`](https://ferrite-fem.github.io/Ferrite.jl/stable/reference/grid/)
+interface.
+
+Unlike a standard Ferrite grid, the "nodes" of an `IGAGrid` are the spline control
+points of `geometry` and each cell corresponds to a non-empty knot span (Bézier element)
+of the underlying tensor-product basis. The cells store the indices of the basis functions
+that are active on the respective knot span, so that the usual Ferrite assembly machinery
+(`CellIterator`, `celldofs`, `reinit!`, …) can be reused.
+
+# Type parameters
+- `sdim`: spatial dimension (dimension of the physical space the control points live in).
+- `rdim`: reference/parametric dimension of the geometry. Defaults to `sdim` when only a
+  single parameter is given.
+
+# Example
+```julia
+geometry = createBSplineSquare(1.0)
+uniformRefine!(geometry, 3)
+grid = IGAGrid{2}(geometry)
+```
+
+See also [`parameterSpaceGrid`](@ref), [`numElements`](@ref) and
+[`numElementsPerDirection`](@ref).
+"""
 struct IGAGrid{sdim, rdim, G <: gsGeometry} <: Ferrite.AbstractGrid{sdim}
     cells::Vector{IGACell{rdim}}
     nodes::Vector{Ferrite.Node}
@@ -53,16 +90,37 @@ function toPhysical(grid::IGAGrid{sdim}, x) where {sdim}
 end
 
 
+"""
+    numElementsPerDirection(grid::IGAGrid, dir::Integer)
+
+Return the number of (non-empty) knot spans / Bézier elements of `grid` along the
+parametric direction `dir`.
+"""
 function numElementsPerDirection(grid::IGAGrid{sdim, 2}, dir::Integer) where {sdim}
     return Int(numElements(TinyGismo.basis(grid.geometry), dir))
 end
 
+"""
+    numElements(grid::IGAGrid)
+
+Return a tuple with the number of elements of `grid` per parametric direction,
+e.g. `(nx, ny)` for a two-dimensional grid. The product of the entries equals
+`getncells(grid)`.
+"""
 TinyGismo.numElements(grid::IGAGrid{sdim, 1}) where {sdim} = (getncells(grid),)
 
 function TinyGismo.numElements(grid::IGAGrid{sdim, 2}) where {sdim}
     return (numElementsPerDirection(grid, 1), numElementsPerDirection(grid, 2))
 end
 
+"""
+    parameterSpaceGrid(grid::IGAGrid)
+
+Build a standard Ferrite grid of the parameter (knot) space of `grid`, using one
+`Line`/`Quadrilateral` cell per knot span. The resulting grid has a regular Lagrange
+mesh whose nodes correspond to the knot-span corners in parameter space and is used
+internally for VTK export and for evaluating solutions at grid nodes.
+"""
 function parameterSpaceGrid(grid::IGAGrid{sdim, 2}) where {sdim}
     return generate_grid(
         Quadrilateral, numElements(grid), grid.knotSpans[1].lower, grid.knotSpans[end].upper
