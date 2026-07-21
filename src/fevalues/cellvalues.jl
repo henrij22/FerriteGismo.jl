@@ -2,10 +2,15 @@ function Ferrite.reinit!(
         cv::CellValues{FV}, cell::CellCache
     ) where {
         FV <:
-        Ferrite.FunctionValues{Order, IP} where {Order, IP <: IGAInterpolation},
+        Ferrite.FunctionValues{Order, IP} where {
+            Order,
+            IP <: Union{IGAInterpolation, VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}},
+        },
     }
-    cv.fun_values.ip.currentElement = cell.grid.knotSpans[cell.cellid]
-    cv.geo_mapping.ip.currentElement = cell.grid.knotSpans[cell.cellid]
+    # For vector fields the function interpolation is a `VectorizedInterpolation`; the
+    # active knot span is tracked on its scalar base interpolation.
+    _iga_base(cv.fun_values.ip).currentElement = cell.grid.knotSpans[cell.cellid]
+    _iga_base(cv.geo_mapping.ip).currentElement = cell.grid.knotSpans[cell.cellid]
 
     Ferrite.precompute_values!(cv.fun_values, Ferrite.getpoints(cv.qr))
     Ferrite.precompute_values!(cv.geo_mapping, Ferrite.getpoints(cv.qr))

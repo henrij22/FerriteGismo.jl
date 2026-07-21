@@ -3,6 +3,9 @@ uuid = "a548586d-644c-43c2-b402-969e06ddf6f5"
 version = "0.1.3"
 authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
 
+[workspace]
+projects = ["docs"]
+
 [deps]
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Ferrite = "c061ca5d-56c9-439f-9c0e-210fe06d3992"
@@ -13,7 +16,7 @@ TinyGismo = "5750890c-44ac-400c-9e9d-1788b5a8ead6"
 
 [compat]
 ArgCheck = "2"
-Ferrite = "~1.4"
+Ferrite = "1.4"
 Reexport = "1"
 SparseArrays = "1"
 Tensors = "1"

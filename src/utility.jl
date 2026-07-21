@@ -1,3 +1,15 @@
+"""
+    KnotSpanWrapper{dim}
+
+Internal, immutable description of a single knot span (Bézier element) of a tensor-product
+spline basis. It caches the `center`, `lower` and `upper` corner of the knot span in
+parameter space as `Vec{dim}` values, converted once from the underlying
+`TinyGismo.KnotSpan`.
+
+`KnotSpanWrapper`s back the cells of an [`IGAGrid`](@ref) and are used to switch the active
+element of an [`IGAInterpolation`](@ref) during `reinit!`, as well as to map reference
+coordinates to parameter space and to compute knot-span areas.
+"""
 struct KnotSpanWrapper{dim}
     center::Vec{dim}
     lower::Vec{dim}
@@ -18,6 +30,18 @@ function extractCoefs(coefs::Matrix, ::Type{T}) where {T <: AbstractVector}
     return [coefs[i, :] |> T for i in 1:size(coefs, 1)]
 end
 
+"""
+    interpolate(basis::gsBasis, u::AbstractVector, x; offset = 0)
+
+Evaluate the spline field defined by the coefficient/dof vector `u` over the G+Smo `basis`
+at the parametric point `x` (either a `Ferrite.Vec` or a plain vector).
+
+The active basis functions at `x` are looked up and combined with the corresponding
+entries of `u`. `offset` is added to the (1-based) coefficient indices before indexing into
+`u`, which is used internally to address a particular field inside a global solution
+vector. The element type of the result follows `eltype(u)`, so both scalar and
+tensor-valued fields are supported.
+"""
 function interpolate(basis::gsBasis, u::AbstractVector, x::Vec; offset = 0)
     return interpolate(basis, u, Vector(x); offset)
 end

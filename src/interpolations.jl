@@ -1,3 +1,28 @@
+"""
+    IGAInterpolation{shape}(basis::gsBasis)
+
+A `Ferrite.ScalarInterpolation` that wraps a G+Smo spline `basis` (B-spline or NURBS)
+so that it can be used like any other Ferrite interpolation, e.g. when constructing
+`CellValues` or when adding a field to an [`IGADofHandler`](@ref).
+
+`shape` is the Ferrite reference shape of the elements, e.g. `RefQuadrilateral` for a
+two-dimensional tensor-product basis or `RefLine` in one dimension. The polynomial
+`order` is deduced from the degree of `basis`.
+
+Because the active basis functions differ from knot span to knot span, an
+`IGAInterpolation` is *mutable* and keeps track of the currently active element; this is
+updated automatically during `reinit!` and should not be modified by user code.
+
+Vector-valued fields are created in the usual Ferrite way, e.g. `ip^2` for a
+two-component field.
+
+# Example
+```julia
+ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
+qr = QuadratureRule{RefQuadrilateral}(2)
+cv = CellValues(qr, ip, ip)
+```
+"""
 mutable struct IGAInterpolation{shape, order, B, dim} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
@@ -93,28 +118,66 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
     return
 end
 
-# TODO
-# function Ferrite.default_geometric_interpolation(
-#         ip::IGAInterpolation{shape}
-#     ) where {shape <: Ferrite.AbstractRefShape{dim}}
-#     return VectorizedInterpolation{dim}(
-#         IGAInterpolation{shape, order}(
-#             Gismo.basis(ip.geometry), ip.geometry
-#         )
-#     )
-# end
-# function Ferrite.default_geometric_interpolation(
-#         ::IGAInterpolation{
-#             vdim, shape, order,
-#             IGAInterpolation{shape, order},
-#         }
-#     ) where {vdim, order, dim, shape <: Ferrite.AbstractRefShape{dim}}
-#     return VectorizedInterpolation{dim}(
-#         IGAInterpolation{shape, order}(
-#             Gismo.basis(ip.geometry), ip.geometry
-#         )
-#     )
-# end
 
-# THis depends actually on the cell
+# This depends actually on the cell
 Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
+
+# ==============================================================================
+# Vector-valued (vectorized) IGA interpolations
+# ==============================================================================
+# Vector fields (e.g. `ip^2`) can't use Ferrite's per-basis-function AD fallback, since that
+# needs a scalar `reference_shape_value(::IGAInterpolation, ξ, i)` which spline bases lack
+# (all active functions are evaluated at once). We instead evaluate the scalar basis once and
+# expand it to the vectorized layout (node-major, component-minor: u1x, u1y, u2x, u2y, ...).
+
+# The vectorized interpolation must use the IGA mapping, not the identity mapping.
+Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
+
+_iga_base(ip::IGAInterpolation) = ip
+_iga_base(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip.ip
+
+function Ferrite.reference_shape_values!(
+        values::AbstractMatrix, ipv::VectorizedInterpolation{vdim, shape, order, IP},
+        qr_points::AbstractVector{<:Vec}
+    ) where {vdim, shape, order, IP <: IGAInterpolation}
+    ip = ipv.ip
+    T = eltype(eltype(values))
+    n = getnbasefunctions(ip)
+    scalar_vals = Matrix{T}(undef, n, length(qr_points))
+    Ferrite.reference_shape_values!(scalar_vals, ip, qr_points)
+
+    for qp in eachindex(qr_points)
+        for I in 1:getnbasefunctions(ipv)
+            i0, c0 = divrem(I - 1, vdim)
+            i, c = i0 + 1, c0 + 1
+            v = scalar_vals[i, qp]
+            values[I, qp] = Vec{vdim, T}(j -> j == c ? v : zero(T))
+        end
+    end
+    return
+end
+
+function Ferrite.reference_shape_gradients_and_values!(
+        gradients::AbstractMatrix, values::AbstractMatrix,
+        ipv::VectorizedInterpolation{vdim, shape, order, IP},
+        qr_points::AbstractVector{<:Vec{rdim}}
+    ) where {vdim, rdim, shape, order, IP <: IGAInterpolation}
+    ip = ipv.ip
+    T = eltype(eltype(values))
+    n = getnbasefunctions(ip)
+    scalar_vals = Matrix{T}(undef, n, length(qr_points))
+    scalar_grads = Matrix{Vec{rdim, T}}(undef, n, length(qr_points))
+    Ferrite.reference_shape_gradients_and_values!(scalar_grads, scalar_vals, ip, qr_points)
+
+    for qp in eachindex(qr_points)
+        for I in 1:getnbasefunctions(ipv)
+            i0, c0 = divrem(I - 1, vdim)
+            i, c = i0 + 1, c0 + 1
+            v = scalar_vals[i, qp]
+            g = scalar_grads[i, qp]
+            values[I, qp] = Vec{vdim, T}(j -> j == c ? v : zero(T))
+            gradients[I, qp] = Tensor{2, vdim, T}((a, b) -> a == c ? g[b] : zero(T))
+        end
+    end
+    return
+end
