@@ -45,7 +45,7 @@ pkg"add FerriteGismo"
 
 ## Quick Start
 
-```julia
+```@example
 using FerriteGismo
 
 # Create a B-spline geometry (unit square)
@@ -69,7 +69,7 @@ close!(dh)
 
 # Create cell values for assembly
 qr = QuadratureRule{RefQuadrilateral}(2)
-cv = CellValues(qr, ip, ip)
+cv = CellValues(qr, ip, ip^2)
 
 # Assembly loop works just like standard Ferrite
 for cell in CellIterator(dh)
