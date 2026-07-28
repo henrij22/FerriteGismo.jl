@@ -83,6 +83,18 @@ determinant of the Jacobian is additionally scaled by the ratio between the knot
 and the reference-element area, so that integration is performed correctly over the
 parametric domain.
 
+### Facet values
+
+Boundary integration follows the same pattern: FerriteGismo specializes
+`Ferrite.reinit!(::FacetValues, ::CellCache, facet_nr)` for IGA interpolations. Because the
+facet quadrature points live on the reference cell, the spline basis is re-evaluated for
+the active knot span on every `reinit!`, exactly as for `CellValues`. The weighted facet
+normal is computed from the parametric Jacobian with `Ferrite.weighted_normal`, and the
+quadrature weights are scaled by the knot-span extent along the facet's tangential
+direction (`FerriteGismo.facetScaleOfKnotSpan`). Boundary facet sets are computed on demand
+by `Ferrite.getfacetset(::IGAGrid, name)` from the knot-span corners, since an `IGAGrid` is
+a structured tensor-product grid.
+
 ## Degree-of-freedom handling
 
 The [`IGADofHandler`](@ref) wraps a regular `Ferrite.DofHandler` and forwards most property
@@ -106,8 +118,12 @@ Ferrite iteration protocol picks up the IGA connectivity.
 
 ## Boundary conditions
 
-Because the standard `ConstraintHandler` / `Dirichlet` workflow relies on facet sets that do
-not exist for `IGAGrid`s, homogeneous Dirichlet conditions along whole parametric edges are
+Neumann boundary conditions use the standard Ferrite `FacetValues` / `FacetIterator`
+workflow together with the on-demand facet sets described above.
+
+The standard `ConstraintHandler` / `Dirichlet` workflow is however not yet supported, since
+it evaluates the prescribed function at facet dof positions, which spline bases do not
+provide. Homogeneous Dirichlet conditions along whole parametric edges are therefore
 applied with the [`fixEdge!`](@ref) helper. It queries the boundary control points of a
 field from G+Smo and calls `Ferrite.add_prescribed_dof!` for each of them. Extending this to
 inhomogeneous and more general boundary conditions is future work.
