@@ -39,6 +39,7 @@ include("iterators.jl")
 
 # FEValues
 include("fevalues/cellvalues.jl")
+include("fevalues/facetvalues.jl")
 include("fevalues/geometry_mapping.jl")
 
 # Export

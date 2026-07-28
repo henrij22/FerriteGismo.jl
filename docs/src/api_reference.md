@@ -42,6 +42,16 @@ IGADofHandler
 fixEdge!
 ```
 
+## Boundary integration
+
+Neumann (traction/flux) boundary conditions are integrated with the standard Ferrite
+`FacetValues` / `FacetIterator` workflow. The boundary facet sets of an `IGAGrid` are not
+stored but computed on demand from the knot spans:
+
+```@docs
+Ferrite.getfacetset(::IGAGrid{sdim, 2}, ::String) where {sdim}
+```
+
 ## Utilities
 
 ```@docs
