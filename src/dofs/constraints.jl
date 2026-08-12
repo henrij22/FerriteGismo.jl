@@ -44,7 +44,7 @@ function fixEdge!(
         dh::IGADofHandler, ch::ConstraintHandler, side::Union{Symbol, Integer},
         field_name::Symbol; components = nothing
     )
-    field_index = Ferrite.find_field(only(dh.dh.subdofhandlers), field_name)
+    field_index = Ferrite.find_field(only(dh.subdofhandlers), field_name)
     return fixEdge!(dh, ch, side, field_index; components)
 end
 
@@ -53,7 +53,7 @@ function fixEdge!(
         field_index::Int; components = nothing
     )
     side_index = isa(side, Symbol) ? _side_idx_for_symbol(side) : side
-    field_ip = Ferrite.getfieldinterpolation(dh.dh, (1, field_index))
+    field_ip = Ferrite.getfieldinterpolation(dh, (1, field_index))
     ncomp = Ferrite.n_components(field_ip)
     base_ip = Ferrite.get_base_interpolation(field_ip)
     comps = components === nothing ? (1:ncomp) : components
