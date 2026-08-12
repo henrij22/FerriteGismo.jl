@@ -12,8 +12,18 @@ function Ferrite.create_vtk_griddata(grid::IGAGrid{sdim}) where {sdim}
     return coordsPhysical, cls
 end
 
+#=
+Mirrors `Ferrite.VTKGridFile(::String, ::DofHandler)`. It must not forward to the wrapped
+handler: the `SubDofHandler`s belong to the `IGADofHandler`, so the wrapped one carries no
+interpolations and the conformity check below would silently never fire.
+=#
 function Ferrite.VTKGridFile(filename::String, dh::IGADofHandler; kwargs...)
-    return VTKGridFile(filename, dh.dh; kwargs...)
+    for sdh in dh.subdofhandlers, ip in sdh.field_interpolations
+        if !isa(Ferrite.conformity(ip), Ferrite.H1Conformity)
+            return VTKGridFile(filename, Ferrite.get_grid(dh); write_discontinuous = true, kwargs...)
+        end
+    end
+    return VTKGridFile(filename, Ferrite.get_grid(dh); kwargs...)
 end
 
 function Ferrite._assemble_L2_matrix(dh::IGADofHandler, qrs_lhs::Vector{<:QuadratureRule})

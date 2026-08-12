@@ -16,9 +16,9 @@ function Ferrite.CellCache(
     return CellCache(flags, Ferrite.get_grid(dh), -1, nodes, coords, dh, celldofs)
 end
 
-function Ferrite.celldofs!(global_dofs, dh::IGADofHandler, i::Int)
+function Ferrite.celldofs!(global_dofs::AbstractVector{Int}, dh::IGADofHandler, i::Int)
     @assert Ferrite.isclosed(dh)
-    @assert length(global_dofs) == Ferrite.ndofs_per_cell(dh)
+    @assert length(global_dofs) == Ferrite.ndofs_per_cell(dh, i)
     unsafe_copyto!(global_dofs, 1, dh.cell_dofs, dh.cell_dofs_offset[i], length(global_dofs))
     return global_dofs
 end
@@ -41,4 +41,18 @@ function Ferrite.CellIterator(
 end
 function Ferrite.CellIterator(gridordh::Union{IGAGrid, IGADofHandler}, flags::UpdateFlags)
     return CellIterator(gridordh, nothing, flags)
+end
+
+#=
+Iterating a `SubDofHandler` has to go through the IGA cache too. Without these, Ferrite's
+generic `CellCache(sdh)`/`CellIterator(sdh)` would be used and the IGA `reinit!`/`celldofs!`
+path bypassed. These are what make subdomain-wise iteration work for IGA, which is required
+once several `SubDofHandler`s share one handler.
+=#
+function Ferrite.CellCache(sdh::SubDofHandler{<:IGADofHandler}, flags::UpdateFlags = UpdateFlags())
+    return CellCache(sdh.dh, flags)
+end
+
+function Ferrite.CellIterator(sdh::SubDofHandler{<:IGADofHandler}, flags::UpdateFlags = UpdateFlags())
+    return Ferrite.CellIterator(CellCache(sdh, flags), sdh.cellset)
 end
