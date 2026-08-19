@@ -97,7 +97,11 @@ Return the number of (non-empty) knot spans / Bézier elements of `grid` along t
 parametric direction `dir`.
 """
 function numElementsPerDirection(grid::IGAGrid{sdim, 2}, dir::Integer) where {sdim}
-    return Int(numElements(TinyGismo.basis(grid.geometry), dir))
+    # Counted from the knot spans rather than asked of the basis: for a patch whose knots
+    # were inserted non-uniformly, `TinyGismo.numElements(basis, dir)` does not report the
+    # number of spans of that direction, and the product over the directions then
+    # disagrees with `getncells`.
+    return length(breakpoints(grid, dir)) - 1
 end
 
 """
@@ -111,26 +115,6 @@ TinyGismo.numElements(grid::IGAGrid{sdim, 1}) where {sdim} = (getncells(grid),)
 
 function TinyGismo.numElements(grid::IGAGrid{sdim, 2}) where {sdim}
     return (numElementsPerDirection(grid, 1), numElementsPerDirection(grid, 2))
-end
-
-"""
-    parameterSpaceGrid(grid::IGAGrid)
-
-Build a standard Ferrite grid of the parameter (knot) space of `grid`, using one
-`Line`/`Quadrilateral` cell per knot span. The resulting grid has a regular Lagrange
-mesh whose nodes correspond to the knot-span corners in parameter space and is used
-internally for VTK export and for evaluating solutions at grid nodes.
-"""
-function parameterSpaceGrid(grid::IGAGrid{sdim, 2}) where {sdim}
-    return generate_grid(
-        Quadrilateral, numElements(grid), grid.knotSpans[1].lower, grid.knotSpans[end].upper
-    )
-end
-
-function parameterSpaceGrid(grid::IGAGrid{sdim, 1}) where {sdim}
-    return generate_grid(
-        Line, numElements(grid), grid.knotSpans[1].lower, grid.knotSpans[end].upper
-    )
 end
 
 Ferrite.geometric_interpolation(::Type{IGACell{2}}) = Lagrange{RefQuadrilateral, 1}()

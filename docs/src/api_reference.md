@@ -21,7 +21,6 @@ spline control points.
 IGAGrid
 numElements
 numElementsPerDirection
-parameterSpaceGrid
 ```
 
 ## Interpolations
@@ -55,6 +54,22 @@ stored but computed on demand from the knot spans:
 
 ```@docs
 Ferrite.getfacetset(::IGAGrid{sdim, 2}, ::String) where {sdim}
+```
+
+## Postprocessing and export
+
+Fields are visualized on the *export mesh*, an ordinary Ferrite grid of the knot spans, see
+the [Postprocessing and export](topic_guides/postprocessing.md) topic guide. The Ferrite
+writers (`VTKGridFile`, `VTKHDFGridFile`, `write_solution`, `write_projection`,
+`evaluate_at_grid_nodes`, `L2Projector`, `project`) accept an [`IGADofHandler`](@ref)
+directly.
+
+```@docs
+exportGrid
+exportPoints
+parameterSpaceGrid
+breakpoints
+evaluateAtExportNodes
 ```
 
 ## Utilities

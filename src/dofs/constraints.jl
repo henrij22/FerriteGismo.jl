@@ -79,9 +79,10 @@ end
 """
     edgeControlPoints(dh::IGADofHandler, side, field_name::Symbol) -> OrderedSet{Int}
 
-Global indices of the control points of the field `field_name` that lie on the boundary
-`side` of the parametric domain, given either as one of `:left`, `:right`, `:bottom`,
-`:top` or as the corresponding G+Smo boundary index.
+Global indices of the control points of `field_name` on one side of the parametric domain.
+
+`side` is one of `:left`, `:right`, `:bottom`, `:top`, or the corresponding G+Smo boundary
+index.
 
 These are the "nodes" of an [`IGAGrid`](@ref), i.e. exactly the entities a
 [`Dirichlet`](https://ferrite-fem.github.io/Ferrite.jl/stable/reference/boundary_conditions/)

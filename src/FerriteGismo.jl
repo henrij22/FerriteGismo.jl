@@ -43,6 +43,8 @@ include("fevalues/facetvalues.jl")
 include("fevalues/geometry_mapping.jl")
 
 # Export
+include("export/exportmesh.jl")
+include("export/l2projection.jl")
 include("export/vtk.jl")
 
 # ==============================================================================
@@ -51,6 +53,9 @@ include("export/vtk.jl")
 
 # Grid
 export IGAGrid, numElements, parameterSpaceGrid, numElementsPerDirection
+
+# Export mesh / postprocessing
+export exportGrid, exportPoints, evaluateAtExportNodes, breakpoints
 
 # Elements
 

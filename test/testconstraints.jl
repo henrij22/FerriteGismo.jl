@@ -104,7 +104,7 @@ end
 
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)      # quadratic
-    uniformRefine!(geometry, 2)      # 4 x 4 elements -> 6 x 6 control points
+    uniformRefine!(geometry, 2)      # 3 x 3 elements -> 5 x 5 control points
     grid = IGAGrid{2}(geometry)
 
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
