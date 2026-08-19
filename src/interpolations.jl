@@ -181,3 +181,45 @@ function Ferrite.reference_shape_gradients_and_values!(
     end
     return
 end
+
+"""
+    interpolate(ip::IGAInterpolation, u::AbstractVector, x; offset = 0)
+    interpolate(ip::VectorizedInterpolation{vdim, …, <:IGAInterpolation}, u::AbstractVector, x; offset = 0)
+
+Evaluate the field described by the dof vector `u` and the interpolation `ip` at the
+parametric point `x`.
+
+The scalar version simply forwards to the `gsBasis` method above. For a vector-valued field
+(e.g. `ip^2`) the interleaved dof numbering of the [`IGADofHandler`](@ref) (`u1x, u1y, u2x,
+u2y, …`) is taken into account and a `Vec{vdim}` is returned. `offset` is the offset of the
+field inside the global dof vector.
+"""
+interpolate(ip::IGAInterpolation, u::AbstractVector, x; offset = 0) = interpolate(_maybeDeref(ip.basis), u, x; offset)
+
+function interpolate(
+        ip::VectorizedInterpolation{vdim, shape, order, <:IGAInterpolation},
+        u::AbstractVector{T}, x::Vec; offset = 0
+    ) where {vdim, shape, order, T}
+    return interpolate(ip, u, Vector(x); offset)
+end
+
+function interpolate(
+        ip::VectorizedInterpolation{vdim, shape, order, <:IGAInterpolation},
+        u::AbstractVector{T}, x::AbstractVector; offset = 0
+    ) where {vdim, shape, order, T}
+    basis = _maybeDeref(ip.ip.basis)
+
+    shape_values_gs = gsMatrix()
+    actives_gs = gsMatrix{Int32}()
+    active!(basis, x, actives_gs)
+    TinyGismo.eval!(basis, x, shape_values_gs)
+    shape_values = toVector(shape_values_gs)
+    actives = toVector(actives_gs)
+
+    result = zero(Vec{vdim, T})
+    for k in eachindex(shape_values)
+        p = actives[k]
+        result += shape_values[k] * Vec{vdim, T}(ntuple(c -> u[offset + vdim * (p - 1) + c], vdim))
+    end
+    return result
+end

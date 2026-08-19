@@ -55,7 +55,7 @@ export IGAGrid, numElements, parameterSpaceGrid, numElementsPerDirection
 # Elements
 
 # Dofs
-export IGADofHandler, fixEdge!
+export IGADofHandler, fixEdge!, prescribeEdge!, edgeControlPoints
 
 # Interpolations
 export IGAInterpolation
