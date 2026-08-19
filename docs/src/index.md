@@ -25,7 +25,8 @@ Ferrite one.
 !!! warning "Status"
     FerriteGismo is under active development and relies on internal Ferrite.jl
     functionality. The API is subject to change, and the `ConstraintHandler` is only
-    partially supported (see [`fixEdge!`](@ref)).
+    partially supported: Dirichlet conditions are given per parametric side, see the
+    [Boundary conditions](topic_guides/boundary_conditions.md) topic guide.
 
 ## How the documentation is organized
 
@@ -34,6 +35,8 @@ for:[^1]
 
 - [**Tutorials**](tutorials/index.md) are thoroughly documented, worked examples that guide
   you through solving a problem with FerriteGismo from start to finish.
+- [**Topic Guides**](topic_guides/index.md) explain one building block at a time — creating a
+  grid, working with the dof handler, boundary conditions, forces and postprocessing.
 - [**API Reference**](api_reference.md) contains the technical reference of the
   user-facing functions and types (the documentation strings).
 - [**Developer documentation**](developer.md) explains the internals of FerriteGismo and is

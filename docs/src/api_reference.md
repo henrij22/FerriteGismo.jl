@@ -38,8 +38,13 @@ IGADofHandler
 
 ## Boundary conditions
 
+Dirichlet conditions are prescribed on the control points of a whole parametric side, see
+the [Boundary conditions](topic_guides/boundary_conditions.md) topic guide.
+
 ```@docs
 fixEdge!
+prescribeEdge!
+edgeControlPoints
 ```
 
 ## Boundary integration
