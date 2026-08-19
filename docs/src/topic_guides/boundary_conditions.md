@@ -53,9 +53,7 @@ the corresponding dofs. Since the spline basis is a partition of unity, a value 
 everywhere on that edge, as the evaluation above shows.
 
 A value that varies along the edge is only interpolated at the control points, not
-``L^2``-projected onto it, so it is met approximately. If you need a spatially varying
-condition to hold exactly, project it onto the edge yourself and prescribe the resulting
-control-point values.
+``L^2``-projected onto it, so it is met approximately. 
 
 ## Which dofs are constrained
 
@@ -75,14 +73,6 @@ Fx = sum(@view r[reactionDofs])
 
 Summing the reactions of a whole side is the consistent integral of the traction over that
 side, i.e. the IGA counterpart of summing the nodal reactions of a facet set.
-
-## Load-stepped and path-following analyses
-
-Because both functions register real Ferrite `Dirichlet` objects, code that differentiates
-the prescribed values with respect to the load factor keeps working — including
-`ForwardDiff`-based ``\partial \hat{d} / \partial \lambda`` machinery used by arc-length
-solvers. As in Ferrite, the second argument must stay generic: write `(x, t) -> -t`, never
-`(x, t::Float64) -> -t`, or the dual number cannot be passed through.
 
 ## Restrictions
 
