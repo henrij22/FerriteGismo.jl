@@ -47,13 +47,17 @@ FerriteGismo.IGACell
 FerriteGismo.KnotSpanWrapper
 ```
 
-### Parameter-space grid
+### The export mesh
 
-For visualization and for evaluating solutions at grid nodes, FerriteGismo builds a regular
-Ferrite grid over the knot spans in parameter space via
-[`parameterSpaceGrid`](@ref). Each knot span becomes one `Line`/`Quadrilateral` cell, and
-its nodes are mapped to physical space with `FerriteGismo.toPhysical` when writing VTK
-output.
+For visualization and for evaluating solutions at grid nodes, FerriteGismo builds an
+ordinary Ferrite grid over the knot spans: [`exportGrid`](@ref) places its nodes at the
+physical positions of the knot-span corners, [`parameterSpaceGrid`](@ref) is the same mesh
+with parametric coordinates, and [`exportPoints`](@ref) are those coordinates as a plain
+vector. All three are derived from [`breakpoints`](@ref), which reads the knot-span
+boundaries per direction, so the mesh follows the actual (possibly non-uniform) knots.
+
+A `subdivision` keyword samples every knot span several times per direction, which is how a
+curved geometry or a high-order field is resolved in the picture.
 
 ## Interpolations
 
@@ -130,10 +134,25 @@ inhomogeneous and more general boundary conditions is future work.
 
 ## Postprocessing and L2 projection
 
-VTK export reuses the [parameter-space grid](@ref "Parameter-space grid"): the solution is
-evaluated at its nodes and written with Ferrite's VTK backend. For projecting
-quadrature-point data (e.g. stresses) onto a continuous spline field, FerriteGismo provides
-an IGA-specific projector.
+Unlike the rest of the package, the export path deliberately does **not** hook into
+Ferrite's internals. A spline patch cannot be written to a VTK file, so instead of
+specializing Ferrite's grid-writing machinery, FerriteGismo hands the writers the
+[export mesh](@ref "The export mesh") — a plain Ferrite `Grid` they already understand —
+and evaluates the spline fields at its nodes with
+[`evaluateAtExportNodes`](@ref). Everything is then written through the public
+`VTKGridFile`/`VTKHDFGridFile` constructors and `Ferrite.write_node_data`.
+
+What FerriteGismo adds are methods of *public* Ferrite functions dispatched on its own
+types — `VTKGridFile`, `VTKHDFGridFile`, `write_solution`, `write_projection`,
+`evaluate_at_grid_nodes`, `L2Projector`, `project` — so downstream code that writes
+`write_solution(vtk, dh, u)` keeps working unchanged.
+
+The projector for quadrature-point data (e.g. stresses) is likewise self-contained: it
+assembles the spline mass matrix with `CellValues`, `allocate_matrix` and
+`start_assemble`/`assemble!`, factorizes it once, and solves for the control-point values
+of each tensor component. The only internal it still touches is the abstract type
+`Ferrite.AbstractProjector`, which it subtypes so that code constrained on that type (as
+Ferrite's own projector is) accepts it.
 
 ```@docs
 FerriteGismo.L2ProjectorIGA

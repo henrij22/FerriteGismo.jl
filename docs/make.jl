@@ -19,7 +19,7 @@ makedocs(;
     repo = Documenter.Remotes.GitHub("henrij22", "FerriteGismo.jl"),
     modules = [FerriteGismo],
     sitename = "FerriteGismo.jl",
-    warnonly = true, checkdocs = :none,
+    warnonly = false, checkdocs = :none,
     pages = [
         "Home" => "index.md",
         "Tutorials" => [
