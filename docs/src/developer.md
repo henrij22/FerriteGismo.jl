@@ -63,9 +63,10 @@ curved geometry or a high-order field is resolved in the picture.
 
 [`IGAInterpolation`](@ref) is a `Ferrite.ScalarInterpolation` wrapping a G+Smo basis. The
 key difference from a Lagrange interpolation is that the set of active basis functions
-depends on the current knot span. To integrate with Ferrite, the interpolation is *mutable*
-and carries a `currentElement` field of type
-[`FerriteGismo.KnotSpanWrapper`](@ref), which is updated during `reinit!`.
+depends on the current knot span. Unlike a `currentElement` field on the interpolation
+itself, `IGAInterpolation` stays stateless: `reinit!` remaps the quadrature points into the
+active knot span (via `FerriteGismo.ref_to_param` and [`FerriteGismo.KnotSpanWrapper`](@ref))
+before evaluation.
 
 FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
 evaluate shape functions and their derivatives on the reference element:
@@ -74,8 +75,8 @@ evaluate shape functions and their derivatives on the reference element:
 - `Ferrite.reference_shape_gradients_and_values!`
 - `Ferrite.reference_shape_hessians_gradients_and_values!`
 
-These map the reference quadrature points into the current knot span (via
-`FerriteGismo.ref_to_param`) and delegate the actual evaluation to the G+Smo basis.
+These receive the already knot-span-remapped points and delegate evaluation to the G+Smo
+basis.
 
 ### Geometry mapping
 

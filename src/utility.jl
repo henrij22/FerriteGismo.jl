@@ -6,9 +6,9 @@ spline basis. It caches the `center`, `lower` and `upper` corner of the knot spa
 parameter space as `Vec{dim}` values, converted once from the underlying
 `TinyGismo.KnotSpan`.
 
-`KnotSpanWrapper`s back the cells of an [`IGAGrid`](@ref) and are used to switch the active
-element of an [`IGAInterpolation`](@ref) during `reinit!`, as well as to map reference
-coordinates to parameter space and to compute knot-span areas.
+`KnotSpanWrapper`s back the cells of an [`IGAGrid`](@ref) and are used during `reinit!` to
+remap quadrature points to parameter space (via `FerriteGismo.ref_to_param`) before an
+[`IGAInterpolation`](@ref) evaluates them, and to compute knot-span areas.
 """
 struct KnotSpanWrapper{dim}
     center::Vec{dim}

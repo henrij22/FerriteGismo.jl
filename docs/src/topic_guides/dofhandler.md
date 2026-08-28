@@ -65,7 +65,7 @@ lower-order pressure space) requires a second geometry/basis object.
 ## Assembly
 
 The assembly loop is a plain Ferrite loop. The only IGA-specific part is that `reinit!`
-switches the active knot span of the interpolation:
+switches the active knot span:
 
 ```@example dofs
 qr = QuadratureRule{RefQuadrilateral}(3)
@@ -86,12 +86,6 @@ nothing # hide
 
 Note that the geometric interpolation passed to `CellValues` is the spline basis itself
 (`ip^2` above, or `ip`), not a Lagrange interpolation: the geometry is the patch.
-
-!!! warning "An IGAInterpolation is mutable"
-    `reinit!` stores the active knot span *in the interpolation object*. Sharing one
-    interpolation between threads that assemble different cells at the same time is
-    therefore not safe — assemble IGA problems serially, or give every task its own
-    interpolation and values.
 
 ## Evaluating a solution
 
