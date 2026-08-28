@@ -44,9 +44,7 @@ end
     isHierarchical(grid::IGAGrid) -> Bool
 
 Whether `grid` is backed by a hierarchical (HB/THB) basis rather than a tensor-product one.
-
-Hierarchical patches have no tensor-product element lattice, so the parts of the export
-machinery that assume one branch on this.
+Such a patch has no tensor-product element lattice, which the export machinery branches on.
 """
 isHierarchical(grid::IGAGrid) =
     _maybeDeref(TinyGismo.basis(grid.geometry)) isa TinyGismo.HierarchicalBasis
@@ -54,14 +52,13 @@ isHierarchical(grid::IGAGrid) =
 #=
 Export mesh of a hierarchical patch.
 
-The tensor path below takes the union of the element corners per direction and builds their
-Cartesian product. On a hierarchical patch that lattice is not the mesh: it contains cells
-that were never refined into, and it grows as the product of every level's breakpoints. So
-the elements are emitted one at a time instead, each with its own block of nodes.
+The tensor path below builds the Cartesian product of the per-direction element corners. On
+a hierarchical patch that lattice is not the mesh -- it contains cells that were never
+refined into, and grows as the product of every level's breakpoints -- so elements are
+emitted one at a time, each with its own block of nodes.
 
-Nodes are therefore duplicated along element boundaries. That is harmless here -- the mesh
-exists to be drawn and to carry pointwise-evaluated field values, and the fields are
-continuous across the seam -- and it is what lets each element be drawn exactly.
+Nodes are duplicated along element boundaries as a result, which is harmless for drawing and
+for pointwise field values, and is what lets each element be drawn exactly.
 =#
 function _elementwiseExportPoints(grid::IGAGrid{sdim, 1}, subdivision::Int) where {sdim}
     return [

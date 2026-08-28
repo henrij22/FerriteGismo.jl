@@ -1,11 +1,11 @@
 # Hierarchical splines
 
-A tensor-product spline space cannot be refined locally. Inserting a knot inserts it across
-the whole patch, so resolving a corner singularity costs elements everywhere along two
-lines. Hierarchical splines break that coupling: a coarse tensor basis is the first *level*,
-and finer levels are introduced only over the regions that need them.
+A tensor-product spline space cannot be refined locally: a knot inserted anywhere is
+inserted across the whole patch, so resolving a corner singularity costs elements along two
+whole lines. Hierarchical splines break that coupling — a coarse tensor basis is the first
+*level*, and finer levels are added only where they are needed.
 
-FerriteGismo supports both flavours that G+Smo provides, through
+FerriteGismo supports both flavours G+Smo provides, through
 [TinyGismo.jl](https://github.com/henrij22/TinyGismo.jl):
 
 | | Partition of unity after refinement | |
@@ -13,8 +13,7 @@ FerriteGismo supports both flavours that G+Smo provides, through
 | `THBSplineBasis` / `THBSpline` | yes | truncated, the usual choice |
 | `HBSplineBasis` / `HBSpline` | no | untruncated |
 
-Everything on this page applies to both. The one place they differ is discussed under
-[Truncation](@ref).
+Everything here applies to both; they differ only under [Truncation](@ref).
 
 ## Building a locally refined patch
 
@@ -70,12 +69,12 @@ Three levels are visible in the lower-left corner, and the rest of the patch is 
 
 ## Why one interpolation is not enough
 
-On a tensor patch every element sees the same number of basis functions, ``(p+1)^{d}``. That
-is what lets a single [`IGAInterpolation`](@ref) describe the whole patch: Ferrite's
-`getnbasefunctions` is one number per interpolation, and it sizes every `CellValues` buffer.
+On a tensor patch every element sees the same ``(p+1)^{d}`` basis functions, which is what
+lets one [`IGAInterpolation`](@ref) describe the whole patch: `getnbasefunctions` is a single
+number per interpolation and it sizes every `CellValues` buffer.
 
-A hierarchical patch breaks that. An element next to a level transition sees the fine
-functions on it *and* the coarse functions that overlap it:
+A hierarchical patch breaks that — an element at a level transition sees the fine functions
+on it *and* the coarse functions overlapping it:
 
 ```@example hier
 sort(unique(length(cell.nodes) for cell in grid.cells))
@@ -94,17 +93,17 @@ end
 
 ## Grouping elements into subdomains
 
-The fix is the mechanism Ferrite already has for "different interpolations on different
-cells": a `SubDofHandler` per group. [`hierarchicalSubdomains`](@ref) partitions the cells by
-their active count and hands back one interpolation per group:
+Ferrite already has a mechanism for different interpolations on different cells: a
+`SubDofHandler` per group. [`hierarchicalSubdomains`](@ref) partitions the cells by active
+count and returns one interpolation per group:
 
 ```@example hier
 groups = hierarchicalSubdomains(grid)
 [(getnbasefunctions(ip), length(cells)) for (cells, ip) in groups]
 ```
 
-Colouring the mesh by group shows what the partition means geometrically — the interior of
-each level is uniform, and the extra functions live in a band along the level transitions:
+Colouring the mesh by group shows what the partition means geometrically: each level's
+interior is uniform, and the extra functions live in a band along the level transitions.
 
 ```@example hier
 mesh = parameterSpaceGrid(grid)
@@ -133,10 +132,9 @@ close!(dh)
 ndofs(dh), Int(size(TinyGismo.basis(patch)))
 ```
 
-The dof count equals the number of control points of the patch. That is the important
-property: the subdomains partition the *elements*, not the basis, so dofs are numbered
-globally over the control points and a control point active in two groups is the same dof in
-both. Nothing about the subdivision leaks into the linear system.
+The dof count equals the number of control points. That is the important property: the
+subdomains partition the *elements*, not the basis, so a control point active in two groups
+is the same dof in both and nothing about the grouping leaks into the linear system.
 
 ## Assembling
 
@@ -156,14 +154,13 @@ for sdh in dh.subdofhandlers
 end
 ```
 
-On a tensor patch there is a single subdomain and this reduces to the usual loop, so the
-same code covers both. The
+A tensor patch has a single subdomain, so the same code covers both. The
 [Locally refined heat equation](../tutorials/hierarchical_refinement.md) tutorial works this
-through end to end, including boundary conditions and the solve.
+through end to end.
 
-Boundary conditions need no special handling at all: constraints are expressed on control
-points, which belong to the patch rather than to any subdomain, so [`fixEdge!`](@ref) and
-[`prescribeEdge!`](@ref) behave exactly as on a tensor patch.
+Boundary conditions need no special handling: constraints are expressed on control points,
+which belong to the patch rather than to any subdomain, so [`fixEdge!`](@ref) and
+[`prescribeEdge!`](@ref) behave as on a tensor patch.
 
 ## Visualization
 
@@ -174,10 +171,10 @@ hierarchical grid they too are built element by element:
 getncells(exportGrid(grid)), getncells(grid)
 ```
 
-Nodes are duplicated along element boundaries as a result — each element carries its own
-corners. That is harmless for drawing and for pointwise field values, and it is what lets
-the graded mesh be drawn exactly. `subdivision` samples each element several times per
-direction, which is what you want for a curved geometry or a high-order field:
+Each element carries its own corners, so nodes are duplicated along element boundaries. That
+is harmless for drawing and for pointwise field values, and is what lets the graded mesh be
+drawn exactly. `subdivision` samples each element several times per direction, for a curved
+geometry or a high-order field:
 
 ```@example hier
 getncells(exportGrid(grid; subdivision = 3))
@@ -210,11 +207,10 @@ pou(truncated, inside), pou(untruncated, inside)
 
 Partition of unity is what makes the coefficients behave like control points and keeps the
 system well-conditioned, so `THBSpline` is the default choice. `HBSpline` goes through the
-identical FerriteGismo pipeline if you want the untruncated functions.
+identical pipeline if you want the untruncated functions.
 
 !!! note "Admissible refinement is not enforced"
-    `refineElements!` refines exactly the elements it is given. It does not enforce a bound
-    on how many levels may meet at an element, which analysis-suitability results rely on.
-    G+Smo's `gsHBox` machinery for admissible refinement is not wrapped by TinyGismo yet, so
-    for now grade your refinement yourself — refine each level over a region contained in the
-    previous one, as the example on this page does.
+    `refineElements!` refines exactly the elements it is given, without bounding how many
+    levels may meet at one element — a condition analysis-suitability results rely on.
+    G+Smo's `gsHBox` machinery is not wrapped by TinyGismo yet, so grade the refinement
+    yourself: refine each level over a region contained in the previous one, as done above.

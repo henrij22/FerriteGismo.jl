@@ -38,10 +38,10 @@ function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefS
     if _maybeDeref(basis) isa TinyGismo.HierarchicalBasis
         throw(
             ArgumentError(
-                "the number of active basis functions of a hierarchical basis varies from " *
-                    "element to element, so one interpolation cannot describe the whole patch. " *
-                    "Use `hierarchicalSubdomains(grid)` to get one interpolation per group of " *
-                    "elements that share an active count, and give each its own SubDofHandler."
+                "a hierarchical basis has a different number of active functions per element, " *
+                    "so one interpolation cannot describe the whole patch. Use " *
+                    "`hierarchicalSubdomains(grid)` for one interpolation per group of elements, " *
+                    "each with its own SubDofHandler."
             )
         )
     end
@@ -61,19 +61,17 @@ end
 """
     IGAInterpolation{shape}(basis, nbasefuns::Int)
 
-Build an interpolation with an explicitly given number of active basis functions.
-
-Needed for hierarchical bases, where the count varies between elements and each group of
-elements sharing a count gets its own interpolation. See [`hierarchicalSubdomains`](@ref),
-which is the intended way to obtain these.
+Build an interpolation with an explicitly given number of active basis functions, as needed
+for the element groups of a hierarchical patch. [`hierarchicalSubdomains`](@ref) is the
+intended way to obtain these.
 """
 function IGAInterpolation{shape}(basis::BB, nbasefuns::Int) where {shape <: Ferrite.AbstractRefShape, BB}
     order = _basisOrder(basis, Ferrite.getrefdim(shape))
     return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
 end
 
-# For a hierarchical basis `degree` reports the degree of the underlying tensor levels, which
-# is what the reference shape order should be -- refinement adds levels, not degree.
+# For a hierarchical basis this is the degree of the tensor levels: refinement adds levels,
+# not degree.
 _basisOrder(basis, dim::Int) =
     dim == 1 ? Int(TinyGismo.degree(basis)) : Int(maximum(ntuple(i -> TinyGismo.degree(basis, i), dim)))
 
@@ -83,13 +81,11 @@ Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 `qr_points` are already remapped into parameter space by `reinit!`, not the canonical
 [-1, 1]^d reference-cell points the name suggests.
 
-The `nActive` guard below matters only for hierarchical bases. `Ferrite` calls these once
-at `CellValues` construction time with the raw reference points, which for an
-`IGAInterpolation` are an arbitrary location in parameter space -- the number of functions
-active there need not be the `nbasefuns` of the subdomain this interpolation belongs to.
-Those construction-time values are overwritten by `reinit!` before anything reads them, so
-they only have to not overrun the G+Smo result. Once `reinit!` has remapped the points into
-one of this subdomain's elements the count matches exactly and nothing is padded.
+`_nActiveAt` guards the one call that is not remapped: Ferrite precomputes at the raw
+reference points when constructing `CellValues`, where a hierarchical basis may have fewer
+actives than this subdomain's `nbasefuns`. Those values are overwritten by `reinit!` before
+use, so they only have to not overrun the G+Smo result; after `reinit!` the count matches
+exactly and nothing is padded.
 =#
 _nActiveAt(raw, ip) = min(Int(TinyGismo.rows(raw)), getnbasefunctions(ip))
 

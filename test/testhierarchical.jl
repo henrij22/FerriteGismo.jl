@@ -1,14 +1,12 @@
 # Hierarchical (HB/THB) patches.
 #
-# The defining difference from a tensor-product patch is that the number of basis functions
-# acting on an element is not constant. FerriteGismo handles that by partitioning the cells
-# into groups that share an active count and giving each group its own SubDofHandler, so most
-# of what is checked here is that the grouping is a genuine partition and that the resulting
-# global operator is still correct.
+# The number of basis functions acting on an element is not constant, so the cells are
+# partitioned into groups sharing an active count, one SubDofHandler each. What is checked
+# here is that the grouping is a genuine partition and that the global operator is correct.
 
 @testsnippet HierarchicalPatch begin
-    # A locally refined unit square: quadratic, 4x4 coarse elements, with the lower-left
-    # quadrant taken down two extra levels.
+    # A locally refined unit square: quadratic, 3x3 coarse elements, with the lower-left
+    # corner taken down `levels - 1` extra levels.
     function refinedSquare(; levels = 2, side = 1.0)
         geo = createBSplineSquare(side)
         degreeElevate!(geo)
@@ -32,8 +30,7 @@
         return dh
     end
 
-    # Assembles the mass and stiffness matrices of the Laplacian over the whole patch,
-    # looping the subdomains as an application would.
+    # Mass and stiffness matrices over the whole patch, looping the subdomains.
     function assembleMassAndStiffness(dh; order = 4)
         M = allocate_matrix(dh)
         K = allocate_matrix(dh)
@@ -89,7 +86,7 @@ end
 
     @test getncells(grid) == 12
     counts = [length(c.nodes) for c in grid.cells]
-    # This is the whole reason subdomains are needed: the count is not constant.
+    # The reason subdomains are needed: the count is not constant.
     @test length(unique(counts)) > 1
     @test all(>=(9), counts)   # at least the (p+1)^2 of the coarse level
     @test all(1 .<= reduce(vcat, [c.nodes for c in grid.cells]) .<= length(grid.nodes))
@@ -166,9 +163,9 @@ end
     M, K, area = assembleMassAndStiffness(dh)
 
     @test area ≈ 4.0
-    # sum(M) = ∫(ΣNᵢ)(ΣNⱼ) = ∫1 = area. This holds only if the shape values are a partition
-    # of unity *and* the per-cell dofs scatter into the right global entries, so it checks
-    # the subdomain bookkeeping as much as the basis.
+    # sum(M) = ∫(ΣNᵢ)(ΣNⱼ) = ∫1 = area, which holds only if the shape values are a partition
+    # of unity *and* the per-cell dofs scatter correctly -- so it checks the subdomain
+    # bookkeeping as much as the basis.
     @test sum(M) ≈ 4.0
     # Constants are in the kernel of the Laplacian.
     @test norm(K * ones(ndofs(dh))) < 1.0e-10
@@ -177,8 +174,8 @@ end
 
 @testitem "Hierarchical: an unrefined THB patch reproduces the tensor patch" setup = [HierarchicalPatch] begin
     using LinearAlgebra
-    # With a single level a THB basis *is* the tensor basis, so the whole pipeline must
-    # produce the identical system -- one group, same dofs, same matrices.
+    # With a single level a THB basis *is* the tensor basis, so the pipeline must produce
+    # the identical system.
     tensorGeo = tensorSquare()
     thb = THBSpline{2}(tensorGeo)
 
@@ -295,8 +292,7 @@ end
     vals = evaluateAtExportNodes(dh, ones(ndofs(dh)), :u)
     @test all(v -> isapprox(v, 1.0; atol = 1.0e-12), vals)
 
-    # The export mesh is built element by element, so it draws the hierarchical layout
-    # exactly rather than a uniform lattice over it.
+    # Built element by element, so it draws the hierarchical layout exactly.
     @test isHierarchical(grid)
     @test getncells(exportGrid(grid)) == getncells(grid)
     @test getncells(parameterSpaceGrid(grid)) == getncells(grid)
@@ -308,7 +304,7 @@ end
     @test length(coords) == 4 * getncells(grid)      # corners are duplicated per element
     @test all(c -> all(0.0 .<= c .<= 1.0), coords)
 
-    # Notions that presuppose a tensor lattice are refused rather than answered wrongly.
+    # Notions presupposing a tensor lattice are refused rather than answered wrongly.
     @test_throws Exception breakpoints(grid, 1)
     @test_throws Exception numElementsPerDirection(grid, 1)
 

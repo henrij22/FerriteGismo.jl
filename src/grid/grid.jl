@@ -150,18 +150,16 @@ _refShape(::Val{3}) = RefHexahedron
 """
     hierarchicalSubdomains(grid::IGAGrid) -> Vector{Tuple{Vector{Int}, IGAInterpolation}}
 
-Partition the cells of a hierarchical grid into groups that share a number of active basis
+Partition the cells of a hierarchical grid into groups sharing a number of active basis
 functions, and give each group its own [`IGAInterpolation`](@ref).
 
-On a hierarchical (HB/THB) patch the number of basis functions acting on an element is not
-constant: elements near a level transition see the coarse functions that overlap them as
-well as the fine ones. `Ferrite.getnbasefunctions` is a single number per interpolation, so
-one interpolation cannot describe such a patch. Grouping the elements by their active count
-restores a constant count *within* each group, which is exactly what a `SubDofHandler` is
-for.
+On a hierarchical patch that number varies between elements, while
+`Ferrite.getnbasefunctions` is one number per interpolation. Grouping restores a constant
+count within each group, which is what a `SubDofHandler` needs. A tensor grid yields a
+single group.
 
-The groups are returned in ascending order of active count. Each is a `(cellset, ip)` pair
-to be handed to one `SubDofHandler`:
+Groups come in ascending order of active count, each a `(cellset, ip)` pair for one
+`SubDofHandler`:
 
 ```julia
 dh = IGADofHandler(grid)
@@ -172,13 +170,7 @@ end
 close!(dh)
 ```
 
-All groups share one basis, so the dofs are numbered globally over the control points and a
-control point active in two groups gets the same dof in both. Assembly then loops over the
-subdomains, each with its own `CellValues` sized for that group.
-
-Works for a tensor-product grid too, where it simply returns a single group.
-
-See also [`IGAInterpolation`](@ref) and [`IGADofHandler`](@ref).
+All groups share one basis, so dofs stay numbered globally over the control points.
 """
 function hierarchicalSubdomains(grid::IGAGrid{sdim, rdim}) where {sdim, rdim}
     basis = TinyGismo.basis(grid.geometry)

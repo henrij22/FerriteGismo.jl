@@ -80,10 +80,9 @@ _maybeDeref(obj) = obj
 
 The elements of `basis` in parameter space, one wrapper per element.
 
-This is the seam over how a basis enumerates its elements. Tensor-product bases go through
-`TinyGismo.knotSpans`; hierarchical bases cannot, because G+Smo's hierarchical domain
-iterator is not safely copyable and TinyGismo therefore refuses `knotSpans` for them. They
-use `TinyGismo.elementBoxes` instead, which returns the same information as owned data.
+Tensor-product bases go through `TinyGismo.knotSpans`. Hierarchical bases cannot -- G+Smo's
+hierarchical domain iterator is not safely copyable, so TinyGismo refuses `knotSpans` for
+them -- and use `elementBoxes` instead.
 """
 _elementSpans(basis, v::Val) = _elementSpans(_maybeDeref(basis), v)
 
@@ -100,11 +99,9 @@ end
 """
     _activeIn(basis, span::KnotSpanWrapper, out::gsMatrix{Int32}) -> Vector{Int32}
 
-The basis functions active on one element, as global 1-based indices.
-
-Evaluated at the element *center* rather than a corner: on a hierarchical mesh a corner can
-sit on the boundary between two levels, where the active set is not the one belonging to
-this element.
+The basis functions active on one element, as global 1-based indices. Evaluated at the
+element *center*: on a hierarchical mesh a corner can lie on a level boundary, where the
+active set is not this element's.
 """
 function _activeIn(basis, span::KnotSpanWrapper, out = gsMatrix{Int32}())
     active!(basis, Vector(span.center), out)

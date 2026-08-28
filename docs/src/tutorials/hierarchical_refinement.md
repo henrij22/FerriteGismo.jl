@@ -11,13 +11,11 @@ This tutorial solves the same problem as the [Heat equation](heat_equation.md) t
 on the unit square with ``u = 0`` on ``\partial\Omega`` — but on a **locally refined** patch
 instead of a uniformly refined one.
 
-The difference from the tensor-product tutorial is confined to two places: the geometry is a
-hierarchical (THB-spline) patch, and the degrees of freedom are distributed over several
-`SubDofHandler`s instead of one. The assembly loop gains a single level of nesting as a
-result. Everything else — boundary conditions, solving, export — is unchanged.
-
-For why the subdomains are needed at all, see the
-[Hierarchical splines](../topic_guides/hierarchical_splines.md) topic guide.
+Only two things differ: the geometry is a hierarchical (THB-spline) patch, and the degrees
+of freedom are distributed over several `SubDofHandler`s instead of one, which gives the
+assembly loop one extra level of nesting. Boundary conditions, solving and export are
+unchanged. See the [Hierarchical splines](../topic_guides/hierarchical_splines.md) topic
+guide for why the subdomains are needed.
 
 ## Commented program
 
@@ -27,9 +25,8 @@ using FerriteGismo, SparseArrays, LinearAlgebra
 
 ### A locally refined geometry
 
-We start from an ordinary quadratic B-spline square and lift it into the hierarchical
-setting with `THBSpline`. The lift changes nothing geometrically; it makes the patch
-refinable element by element.
+We start from an ordinary quadratic B-spline square and lift it with `THBSpline`. The lift
+changes nothing geometrically; it makes the patch refinable element by element.
 
 ```@example hierheat
 geometry = createBSplineSquare(1.0)
@@ -40,8 +37,8 @@ patch = THBSpline{2}(geometry)
 ```
 
 Now refine towards the lower-left corner, one level at a time. A `RefinementBox` names the
-level a region is refined **to**, with its corners indexed on that level's grid — so each
-box below covers a quarter of the region of the box before it.
+level a region is refined **to**, with corners indexed on that level's grid, so each box
+below covers a quarter of the previous one.
 
 ```@example hierheat
 refineElements!(patch, RefinementBox(2, 1:4, 1:4))
@@ -62,10 +59,10 @@ tikzgrid(parameterSpaceGrid(grid); cellcolor = "blue!12", picturescale = 6.0)
 
 ### Subdomains and degrees of freedom
 
-On a hierarchical patch the number of basis functions acting on an element is not constant,
-so one interpolation cannot describe the whole grid. [`hierarchicalSubdomains`](@ref) groups
-the cells by their active-function count and returns an interpolation for each group; every
-group becomes one `SubDofHandler`.
+The number of basis functions acting on an element is not constant here, so one
+interpolation cannot describe the whole grid. [`hierarchicalSubdomains`](@ref) groups the
+cells by active-function count and returns an interpolation per group; each becomes one
+`SubDofHandler`.
 
 ```@example hierheat
 groups = hierarchicalSubdomains(grid)
@@ -82,14 +79,13 @@ close!(dh)
 ndofs(dh)
 ```
 
-The dofs are numbered globally over the control points of the patch, so the grouping is
-invisible to the linear system — it only tells the assembly loop how large each element
-matrix is.
+The dofs are numbered globally over the control points, so the grouping is invisible to the
+linear system — it only tells the assembly loop how large each element matrix is.
 
 ### Boundary conditions
 
-Unchanged from the tensor-product case. Constraints are expressed on control points, which
-belong to the patch rather than to any subdomain.
+Unchanged: constraints are expressed on control points, which belong to the patch rather
+than to any subdomain.
 
 ```@example hierheat
 ch = ConstraintHandler(dh)
@@ -126,9 +122,9 @@ end
 nothing # hide
 ```
 
-The global loop is where the one structural difference shows up: it iterates the
-subdomains, and builds a `CellValues` for each, because each has its own number of shape
-functions. On a tensor patch there is a single subdomain and this reduces to the usual loop.
+The global loop is where the one structural difference shows up: it iterates the subdomains,
+building a `CellValues` for each, since each has its own number of shape functions. A tensor
+patch has a single subdomain, reducing this to the usual loop.
 
 ```@example hierheat
 function assemble_global(dh::IGADofHandler, qr::QuadratureRule)
@@ -156,9 +152,9 @@ K, f = assemble_global(dh, QuadratureRule{RefQuadrilateral}(3))
 nothing # hide
 ```
 
-Two identities are worth checking on a locally refined patch, because they fail loudly if
-either the shape functions or the dof bookkeeping across subdomains is wrong. Constants are
-in the kernel of the Laplacian:
+Two identities are worth checking, since they fail loudly if either the shape functions or
+the dof bookkeeping across subdomains is wrong. Constants are in the kernel of the
+Laplacian:
 
 ```@example hierheat
 norm(K * ones(ndofs(dh)))
@@ -185,16 +181,14 @@ The exact centre value of this problem is ``0.0736713\ldots``:
 FerriteGismo.interpolate(FerriteGismo._fieldInterpolation(dh, :u), u, [0.5, 0.5])
 ```
 
-Within a fraction of a percent, on a mesh whose refinement all went into one corner while
-the centre still sits on a coarse level. Local refinement pays off where it is placed —
-which is the point, and also the catch: it has to be placed where the solution needs it. A
-practical scheme drives that choice from an error indicator computed per element rather than
-from a fixed box.
+Within a fraction of a percent, on a mesh refined entirely in one corner while the centre
+still sits on a coarse level. Local refinement pays off where it is placed, so a practical
+scheme drives that choice from a per-element error indicator rather than a fixed box.
 
 ### Postprocessing
 
-Export is unchanged. On a hierarchical grid the export mesh is built element by element, so
-the file contains the graded mesh rather than a uniform lattice over it.
+Export is unchanged. The export mesh is built element by element here, so the file contains
+the graded mesh rather than a uniform lattice over it.
 
 ```@example hierheat
 VTKGridFile("hierarchical_heat_equation", dh) do vtk

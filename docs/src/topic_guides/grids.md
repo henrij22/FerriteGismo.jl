@@ -111,9 +111,8 @@ These sets are ordinary `OrderedSet{FacetIndex}`s and work with `FacetIterator` 
 ## Local refinement
 
 `uniformRefine!` and `insertKnot!` act on the whole patch: a knot inserted in one direction
-splits every element along it. Refining only a corner needs a hierarchical basis, where a
-coarse tensor level is refined locally by adding finer levels over the regions that need
-them:
+splits every element along it. Refining only a corner needs a hierarchical basis, which adds
+finer levels over just the regions that need them:
 
 ```@example grids
 patch = THBSpline{2}(createBSplineSquare(1.0))
@@ -123,8 +122,8 @@ getncells(hierGrid), isHierarchical(hierGrid)
 ```
 
 Such a grid needs one `SubDofHandler` per group of elements sharing an active-function
-count, because that count is no longer constant. See
-[Hierarchical splines](hierarchical_splines.md) for the whole story.
+count, since that count is no longer constant — see
+[Hierarchical splines](hierarchical_splines.md).
 
 !!! note "One patch at a time"
     An `IGAGrid` describes a single patch. Multi-patch geometries, and hence internal

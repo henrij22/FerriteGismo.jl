@@ -114,13 +114,9 @@ function Ferrite.close!(dh::IGADofHandler)
         name in dh.field_names || push!(dh.field_names, name)
     end
 
-    #=
-    Dofs are numbered by the spline basis, not by the subdomain: one global block per field,
-    shared by every SubDofHandler. That is what makes the hierarchical grouping work -- the
-    subdomains there partition the *elements* of one patch, so a control point active in two
-    subdomains has to come out as the same dof in both. With a single SubDofHandler this
-    reduces to the previous numbering exactly.
-    =#
+    # One global dof block per field, shared by every SubDofHandler. The hierarchical
+    # subdomains partition the *elements* of one patch, so a control point active in two of
+    # them must come out as the same dof in both.
     empty!(dh.field_offsets)
     fieldOffsets = Dict{Symbol, Int}()
     nextdof = 0
@@ -161,15 +157,9 @@ function Ferrite.close!(dh::IGADofHandler)
     return dh
 end
 
-#=
-Field lookup across subdomains.
-
-`only(dh.subdofhandlers)` would reject a hierarchically grouped patch outright, yet every
-question these answer -- which interpolation describes a field, where its dof block starts --
-is a property of the field and its spline basis, not of any one subdomain. The subdomains of
-a hierarchical patch all carry the same fields over the same basis, so any of them answers.
-With a single SubDofHandler these reduce to the previous lookups exactly.
-=#
+# Field lookup across subdomains. Which interpolation describes a field, and where its dof
+# block starts, are properties of the field and its basis rather than of any one subdomain,
+# so `only(dh.subdofhandlers)` is too strict for a hierarchically grouped patch.
 
 """
     _globalFieldIndex(dh::IGADofHandler, name::Symbol) -> Int
@@ -195,8 +185,8 @@ function _fieldInterpolation(dh::IGADofHandler, name::Symbol)
     return error("Did not find field :$name in IGADofHandler (existing fields: $(Ferrite.getfieldnames(dh))).")
 end
 
-# Total dofs of one field, from the first SubDofHandler that defines it. Every subdomain
-# carrying the field must agree on this, since they share the global numbering.
+# Total dofs of one field. Every subdomain carrying it must agree, since they share the
+# global numbering.
 function _fieldDofCount(dh::IGADofHandler, name::Symbol)
     for sdh in dh.subdofhandlers
         idx = Ferrite._find_field(sdh, name)
@@ -220,8 +210,7 @@ function _collect_cell_dofs_iga!(
         ncomp = Ferrite.n_components(ip)
 
         for ci in sdh.cellset
-            # The elements are already on the grid, so the active set is read from there
-            # rather than re-derived from the basis.
+            # Read from the grid rather than re-derived from the basis.
             activeInCell = _activeIn(basis, grid.knotSpans[ci], actives)
 
             if ncomp == 1
