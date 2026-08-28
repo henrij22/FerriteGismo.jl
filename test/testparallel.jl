@@ -74,7 +74,7 @@ end
 end
 
 @testitem "parallel assembly reproduces the serial stiffness matrix" begin
-    using Base.Threads: nthreads, threadid, @threads
+    using Base.Threads: nthreads, @threads
     using LinearAlgebra: norm
 
     geometry = createBSplineSquare(1.0)
@@ -117,28 +117,33 @@ end
         assemble!(assembler_serial, celldofs(cell), ke)
     end
 
-    # "Parallel" assembly: every physical thread works off its own `copy` of `CellValues`/
-    # `CellCache` (the pattern the docs recommend), indexed by `threadid()` under `:static`
-    # scheduling so this is a real one-scratch-set-per-thread setup, not just an aliased
-    # re-use of the same objects. This exercises real concurrency whenever the test process
-    # has more than one thread.
+    # "Parallel" assembly: a pool of independent `copy`s of `CellValues`/`CellCache` (the
+    # pattern the docs recommend) is handed out to whichever task asks for one next via a
+    # `Channel` (thread-safe by construction, unlike indexing by `threadid()` — which is
+    # *not* guaranteed to lie in `1:nthreads()` once Julia's interactive thread pool is
+    # involved). This exercises real concurrency whenever the test process has more than one
+    # thread, and — since the pool is smaller than the number of cells — forces scratch
+    # objects to be reused by different tasks over the course of the loop, exactly the
+    # pattern that used to alias `currentElement` before `Base.copy` was specialized.
     K_parallel = allocate_matrix(dh)
     assembler_lock = ReentrantLock()
     assembler_parallel = start_assemble(K_parallel)
 
-    ccs = [CellCache(dh) for _ in 1:nthreads()]
-    cvs = [copy(cv_serial) for _ in 1:nthreads()]
-    kes = [zeros(n, n) for _ in 1:nthreads()]
+    npool = 2 * nthreads() + 2
+    pool = Channel{Tuple{CellCache, typeof(cv_serial), Matrix{Float64}}}(npool)
+    for _ in 1:npool
+        put!(pool, (CellCache(dh), copy(cv_serial), zeros(n, n)))
+    end
 
-    @threads :static for cellid in 1:getncells(grid)
-        tid = threadid()
-        cc, cv, ke_local = ccs[tid], cvs[tid], kes[tid]
+    @threads for cellid in 1:getncells(grid)
+        cc, cv, ke_local = take!(pool)
         reinit!(cc, cellid)
         reinit!(cv, cc)
         assemble_element!(ke_local, cv)
         lock(assembler_lock) do
             return assemble!(assembler_parallel, celldofs(cc), ke_local)
         end
+        put!(pool, (cc, cv, ke_local))
     end
 
     @test norm(K_parallel - K_serial) / norm(K_serial) < 1.0e-12
