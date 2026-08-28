@@ -67,6 +67,18 @@ depends on the current knot span. To integrate with Ferrite, the interpolation i
 and carries a `currentElement` field of type
 [`FerriteGismo.KnotSpanWrapper`](@ref), which is updated during `reinit!`.
 
+This mutable field is what makes a *shared* `IGAInterpolation` unsafe to `reinit!` from
+several tasks at once. Ferrite's own answer to per-cell state living outside the
+interpolation — task-local `copy(cellvalues)` — works here too, but only because
+`IGAInterpolation` and `VectorizedInterpolation{...,<:IGAInterpolation}` both specialize
+`Base.copy` to allocate a fresh interpolation object with its own `currentElement` slot
+(read-only fields like `basis` and `nbasefuns` are still shared). Without these methods,
+`copy` would fall through to Ferrite's generic `Base.copy(ip::Interpolation) = ip`, which
+is correct for genuinely stateless interpolations but would silently hand every "copy"
+the same shared, racy object for IGA ones. See
+[Parallel assembly](@ref "Parallel assembly") in the DofHandler guide for the resulting
+usage pattern.
+
 FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
 evaluate shape functions and their derivatives on the reference element:
 

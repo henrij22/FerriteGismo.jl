@@ -13,6 +13,13 @@ Because the active basis functions differ from knot span to knot span, an
 `IGAInterpolation` is *mutable* and keeps track of the currently active element; this is
 updated automatically during `reinit!` and should not be modified by user code.
 
+This makes the *same* `IGAInterpolation` object (and any `CellValues`/`FacetValues` built
+from it) unsafe to `reinit!` concurrently from several tasks. `IGAInterpolation` therefore
+implements `Base.copy`, so it plugs into Ferrite's ordinary task-local pattern for parallel
+assembly: give every task its own `copy` of the `CellValues`/`FacetValues` (e.g. via
+`TaskLocalValue`), each of which gets its own private "current element" slot, and reinit!
+each independently.
+
 Vector-valued fields are created in the usual Ferrite way, e.g. `ip^2` for a
 two-component field.
 
@@ -52,6 +59,22 @@ function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefS
 end
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
+
+#=
+Ferrite's parallel-assembly recipe is to give every task its own `copy` of a `CellValues`/
+`FacetValues` (e.g. `TaskLocalValue{typeof(cv)}(() -> copy(cv))`); `copy(::FunctionValues)`
+and `copy(::GeometryMapping)` propagate this down to `copy(ip)` for the interpolation. The
+generic fallback `Base.copy(ip::Interpolation) = ip` is correct there because ordinary
+interpolations (e.g. `Lagrange`) carry no per-cell state, so every task can safely keep
+sharing the very same object. `IGAInterpolation` is the odd one out: `currentElement` is
+mutated in place by `reinit!`, so two tasks reinit!-ing the *same* object race on that
+field. Returning a new object here (sharing the read-only `basis`/`nbasefuns`, but with an
+independent `currentElement` slot) is what makes `copy(cellvalues)` produce genuinely
+task-local IGA interpolations, exactly like it already does for stateless ones.
+=#
+function Base.copy(ip::IGAInterpolation{shape, order, B, dim}) where {shape, order, B, dim}
+    return IGAInterpolation{shape, order, B, dim}(ip.basis, ip.nbasefuns, ip.currentElement)
+end
 
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
@@ -132,6 +155,15 @@ Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
 
 # The vectorized interpolation must use the IGA mapping, not the identity mapping.
 Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
+
+# `VectorizedInterpolation` (unlike `IGAInterpolation`) has no `copy` of its own in Ferrite
+# either, so it also falls back to `Base.copy(ip::Interpolation) = ip` -- which would hand
+# every task-local `copy(cellvalues)` the very same, still-shared, scalar `IGAInterpolation`
+# for a vector field (`ip^2`). Since vector-valued fields are the common case, unwrap and
+# re-copy the scalar interpolation explicitly.
+function Base.copy(ipv::VectorizedInterpolation{vdim, <:Any, <:Any, <:IGAInterpolation}) where {vdim}
+    return VectorizedInterpolation{vdim}(copy(ipv.ip))
+end
 
 _iga_base(ip::IGAInterpolation) = ip
 _iga_base(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip.ip

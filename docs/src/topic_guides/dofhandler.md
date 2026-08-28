@@ -89,9 +89,40 @@ Note that the geometric interpolation passed to `CellValues` is the spline basis
 
 !!! warning "An IGAInterpolation is mutable"
     `reinit!` stores the active knot span *in the interpolation object*. Sharing one
-    interpolation between threads that assemble different cells at the same time is
-    therefore not safe — assemble IGA problems serially, or give every task its own
-    interpolation and values.
+    `CellValues`/`FacetValues`/interpolation between tasks that assemble different cells at
+    the same time is therefore not safe — each task needs its own copy, see
+    [Parallel assembly](@ref) below.
+
+## Parallel assembly
+
+`IGAInterpolation` implements `Base.copy`, so it follows Ferrite's ordinary task-local
+pattern for threaded assembly: give every task its own `copy` of the `CellValues` (rather
+than sharing the one built above), e.g. with `TaskLocalValue`:
+
+```julia
+using Base.Threads: @threads
+using TaskLocalValues: TaskLocalValue # as used in Ferrite's own threaded-assembly recipe
+
+n = ndofs_per_cell(dh)
+ccs = TaskLocalValue{CellCache}(() -> CellCache(dh))
+cvs = TaskLocalValue{typeof(cellvalues)}(() -> copy(cellvalues))
+kes = TaskLocalValue{Matrix{Float64}}(() -> zeros(n, n))
+
+@threads for cellid in 1:getncells(dh)
+    cc, cv, ke = ccs[], cvs[], kes[]
+    reinit!(cc, cellid)
+    reinit!(cv, cc)
+    fill!(ke, 0.0)
+    # ... element contributions, using shape_value/shape_gradient/getdetJdV as usual
+    assemble!(assembler, celldofs(cc), ke) # a thread-safe assembler is required too
+end
+```
+
+`copy(cellvalues)` allocates a fresh `IGAInterpolation` per task with its own private
+"current element" slot — the underlying `basis` (the G+Smo object) is still shared, but
+only ever read, never mutated, by `reinit!`. Reusing the *same* `CellValues` object (or the
+same `IGAInterpolation`, e.g. by re-passing the one `ip` above into several `CellValues`
+used by different tasks) is still unsafe: only a `copy` gets its own slot.
 
 ## Evaluating a solution
 
