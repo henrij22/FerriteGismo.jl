@@ -9,14 +9,10 @@ so that it can be used like any other Ferrite interpolation, e.g. when construct
 two-dimensional tensor-product basis or `RefLine` in one dimension. The polynomial
 `order` is deduced from the degree of `basis`.
 
-Because the active basis functions differ from knot span to knot span, evaluating `ip`
-requires knowing which knot span is currently active. `IGAInterpolation` itself carries no
-such per-cell state, only the (read-only) `basis` and the number of basis functions active
-on any one knot span: `reinit!` remaps the quadrature points into the active knot span's
-parameter-space rectangle before handing them to `ip` (see
-[`FerriteGismo.KnotSpanWrapper`](@ref) and `FerriteGismo.ref_to_param`). This makes
-`IGAInterpolation` just as safe to share across cells and threads as any other Ferrite
-interpolation.
+Since the active basis functions depend on the current knot span, `reinit!` remaps
+quadrature points into that span's parameter space (see
+[`FerriteGismo.KnotSpanWrapper`](@ref)) before evaluating `ip`. `ip` itself holds no
+per-cell state and is as safe to share as any other Ferrite interpolation.
 
 Vector-valued fields are created in the usual Ferrite way, e.g. `ip^2` for a
 two-component field.
@@ -44,9 +40,7 @@ function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefS
         nbasefuns = numActive(basis) # might be a problem with tensorbasis
     else
         order = maximum(ntuple(i -> TinyGismo.degree(basis, i), dim))
-        # Any knot span will do here: the number of active basis functions is the same for
-        # all of them (an open tensor-product knot vector has uniform valence) and no
-        # particular span's data needs to be kept around afterwards.
+        # nbasefuns is the same for every knot span, so any one will do as a probe point
         firstSpan = KnotSpanWrapper{dim}(first(knotSpans(basis)))
         out = gsMatrix{Int32}()
         active!(basis, Vector(firstSpan.center), out)
@@ -58,9 +52,8 @@ end
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
-# `qr_points` are already the active knot span's parameter-space points, remapped by
-# `reinit!` (see fevalues/cellvalues.jl and fevalues/facetvalues.jl) via `ref_to_param` --
-# not the canonical [-1, 1]^d reference-cell points the Ferrite-mandated name suggests.
+# `qr_points` are already remapped into parameter space by `reinit!`, not the canonical
+# [-1, 1]^d reference-cell points the name suggests.
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
     ) where {rdim, IP <: IGAInterpolation}

@@ -7,14 +7,11 @@
 
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
 
-    # `ip` is a plain immutable value holding only the read-only basis/nbasefuns -- no
-    # "current element"/"current cell" field to mutate or race on.
+    # No "current element" field to mutate or race on
     @test !ismutabletype(typeof(ip))
     @test fieldnames(typeof(ip)) == (:basis, :nbasefuns)
 
-    # Being immutable, Ferrite's generic fallback `Base.copy(::Interpolation) = ip` is
-    # correct as-is, exactly like for `Lagrange`: no specialized `copy` is needed (or
-    # defined) for IGAInterpolation any more.
+    # Ferrite's generic fallback `Base.copy(::Interpolation) = ip` is correct as-is now
     @test copy(ip) === ip
 
     ipVec = ip^2
@@ -36,10 +33,7 @@ end
     add!(dh, :u, ip)
     close!(dh)
 
-    # Two independently constructed `CellValues`, both built directly from the exact same
-    # `ip` object -- no `copy` anywhere. Before `IGAInterpolation` became stateless, this
-    # aliased a mutable `currentElement` field and reinit!-ing one would silently corrupt
-    # the other; now there is nothing on `ip` to alias.
+    # Two independent CellValues built from the exact same ip, no copy anywhere
     cvA = CellValues(qr, ip, ip)
     cvB = CellValues(qr, ip, ip)
     @test Ferrite.function_interpolation(cvA) === Ferrite.function_interpolation(cvB) === ip
@@ -49,20 +43,17 @@ end
     reinit!(ccB, getncells(grid))
     reinit!(cvA, ccA)
 
-    # Snapshot cvA's shape values before touching cvB, so that any lingering shared state
-    # (the bug this guards against) would show up as a corruption below.
     valsA_before = [shape_value(cvA, 1, i) for i in 1:getnbasefunctions(cvA)]
     detJdVA_before = getdetJdV(cvA, 1)
 
-    # reinit!-ing the *other* CellValues (sharing the same `ip`) to a different cell must
-    # not perturb cvA at all.
+    # reinit!-ing cvB (sharing the same ip) to a different cell must not perturb cvA
     reinit!(cvB, ccB)
 
     valsA_after = [shape_value(cvA, 1, i) for i in 1:getnbasefunctions(cvA)]
     @test valsA_after == valsA_before
     @test getdetJdV(cvA, 1) == detJdVA_before
 
-    # Sanity: cvB really did pick up the other cell's (generally different) shape values.
+    # Sanity: cvB did pick up the other cell's (generally different) shape values
     valsB = [shape_value(cvB, 1, i) for i in 1:getnbasefunctions(cvB)]
     @test valsB != valsA_after || getdetJdV(cvB, 1) != detJdVA_before
 end
@@ -111,14 +102,9 @@ end
         assemble!(assembler_serial, celldofs(cell), ke)
     end
 
-    # "Parallel" assembly: a pool of independent `CellCache`/`CellValues` scratch objects
-    # (each built directly from the *same* shared `ip` -- no `copy` of `ip` needed any more)
-    # is handed out to whichever task asks for one next via a `Channel` (thread-safe by
-    # construction). This exercises real concurrency whenever the test process has more
-    # than one thread, and -- since the pool is smaller than the number of cells -- forces
-    # scratch objects to be reused by different tasks over the course of the loop, exactly
-    # the pattern that used to alias `currentElement` before the interpolation became
-    # stateless.
+    # Parallel assembly: a pool of CellCache/CellValues (all sharing the same ip, no copy
+    # needed) handed out via a Channel, smaller than getncells so scratch objects are
+    # reused across tasks over the course of the loop.
     K_parallel = allocate_matrix(dh)
     assembler_lock = ReentrantLock()
     assembler_parallel = start_assemble(K_parallel)

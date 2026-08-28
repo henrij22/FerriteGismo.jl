@@ -7,15 +7,9 @@ function Ferrite.reinit!(
             IP <: Union{IGAInterpolation, VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}},
         },
     }
-    # `IGAInterpolation` carries no per-cell state: instead of switching some "active
-    # element" stored on the interpolation, the reference-cell quadrature points are
-    # remapped into the active knot span's parameter-space rectangle here, before ever
-    # being handed to `ip`. This is what makes `ip` (and, transitively, `cv`'s per-task
-    # scratch buffers aside, `cv` itself) safe to share across cells and tasks.
-    #
-    # `ref_to_param` mixes broadcasted (`.+`/`.*`) and `Vec` arithmetic and so returns a
-    # plain `Vector`, not a `Vec`; re-wrap it, since `Ferrite.precompute_values!` requires
-    # `AbstractVector{<:Vec}`.
+    # Remap the reference-cell quadrature points into the active knot span's parameter
+    # space, instead of storing "the active knot span" on the interpolation itself.
+    # ref_to_param returns a plain Vector; re-wrap it since precompute_values! needs Vec.
     knotSpan = cell.grid.knotSpans[cell.cellid]
     dim = Ferrite.getrefdim(cv.fun_values.ip)
     points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(cv.qr)]

@@ -93,11 +93,7 @@ function Ferrite.reinit!(
     knotSpan = cc.grid.knotSpans[cc.cellid]
     dim = Ferrite.getrefdim(fun_values.ip)
 
-    # The facet quadrature points live on the reference cell, so — exactly as in the cell
-    # `reinit!` — they are remapped into the active knot span's parameter-space rectangle
-    # before the spline basis (which carries no per-cell state of its own) evaluates them.
-    # `ref_to_param` returns a plain `Vector` (see the comment in cellvalues.jl), so re-wrap
-    # it into a `Vec` for `Ferrite.precompute_values!`.
+    # Remap the facet quadrature points into the active knot span, as in the cell reinit!
     points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(fv.fqr, facet_nr)]
     Ferrite.precompute_values!(fun_values, points)
     Ferrite.precompute_values!(geo_mapping, points)

@@ -63,14 +63,10 @@ curved geometry or a high-order field is resolved in the picture.
 
 [`IGAInterpolation`](@ref) is a `Ferrite.ScalarInterpolation` wrapping a G+Smo basis. The
 key difference from a Lagrange interpolation is that the set of active basis functions
-depends on the current knot span — but `IGAInterpolation` itself carries no notion of
-"current knot span" (or any other per-cell state): it only holds the (read-only) `basis`
-and the number of basis functions active on any one knot span. `reinit!` instead remaps the
-reference-cell quadrature points into the active knot span's parameter-space rectangle (via
-`FerriteGismo.ref_to_param` and the cell's [`FerriteGismo.KnotSpanWrapper`](@ref)) *before*
-handing them to the low-level evaluation entry points below, so those never need to know
-which cell they are being called for. This makes `IGAInterpolation` exactly as safe to
-share across cells and threads as an ordinary, stateless interpolation like `Lagrange`.
+depends on the current knot span. Unlike a `currentElement` field on the interpolation
+itself, `IGAInterpolation` stays stateless: `reinit!` remaps the quadrature points into the
+active knot span (via `FerriteGismo.ref_to_param` and [`FerriteGismo.KnotSpanWrapper`](@ref))
+before evaluation.
 
 FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
 evaluate shape functions and their derivatives on the reference element:
@@ -79,9 +75,8 @@ evaluate shape functions and their derivatives on the reference element:
 - `Ferrite.reference_shape_gradients_and_values!`
 - `Ferrite.reference_shape_hessians_gradients_and_values!`
 
-Despite the "reference" in their names, the points these receive are already the
-knot-span-remapped parameter-space points computed by `reinit!` — these methods simply
-delegate the evaluation at those points to the G+Smo basis.
+These receive the already knot-span-remapped points and delegate evaluation to the G+Smo
+basis.
 
 ### Geometry mapping
 
