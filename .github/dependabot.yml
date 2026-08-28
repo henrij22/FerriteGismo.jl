@@ -5,3 +5,8 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+  # Keep Julia dependencies up to date
+  - package-ecosystem: "julia"
+    directory: "/"
+    schedule:
+      interval: "weekly"
