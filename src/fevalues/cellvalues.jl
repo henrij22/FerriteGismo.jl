@@ -12,8 +12,13 @@ function Ferrite.reinit!(
     # remapped into the active knot span's parameter-space rectangle here, before ever
     # being handed to `ip`. This is what makes `ip` (and, transitively, `cv`'s per-task
     # scratch buffers aside, `cv` itself) safe to share across cells and tasks.
+    #
+    # `ref_to_param` mixes broadcasted (`.+`/`.*`) and `Vec` arithmetic and so returns a
+    # plain `Vector`, not a `Vec`; re-wrap it, since `Ferrite.precompute_values!` requires
+    # `AbstractVector{<:Vec}`.
     knotSpan = cell.grid.knotSpans[cell.cellid]
-    points = map(ξ -> ref_to_param(ξ, knotSpan), Ferrite.getpoints(cv.qr))
+    dim = Ferrite.getrefdim(cv.fun_values.ip)
+    points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(cv.qr)]
 
     Ferrite.precompute_values!(cv.fun_values, points)
     Ferrite.precompute_values!(cv.geo_mapping, points)
@@ -27,7 +32,6 @@ function Ferrite.reinit!(
     end
 
     current_coefs = getfield.(cell.grid.nodes[cell.nodes], :x)
-    dim = Ferrite.getrefdim(cv.fun_values.ip)
 
     # Volume Mapping from parent to knot span
     rV = areaOfKnotSpan(knotSpan) / (2^dim)
