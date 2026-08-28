@@ -44,8 +44,7 @@ function fixEdge!(
         dh::IGADofHandler, ch::ConstraintHandler, side::Union{Symbol, Integer},
         field_name::Symbol; components = nothing
     )
-    field_index = Ferrite.find_field(only(dh.subdofhandlers), field_name)
-    return fixEdge!(dh, ch, side, field_index; components)
+    return fixEdge!(dh, ch, side, _globalFieldIndex(dh, field_name); components)
 end
 
 function fixEdge!(
@@ -53,7 +52,7 @@ function fixEdge!(
         field_index::Int; components = nothing
     )
     side_index = isa(side, Symbol) ? _side_idx_for_symbol(side) : side
-    field_ip = Ferrite.getfieldinterpolation(dh, (1, field_index))
+    field_ip = _fieldInterpolation(dh, dh.field_names[field_index])
     ncomp = Ferrite.n_components(field_ip)
     base_ip = Ferrite.get_base_interpolation(field_ip)
     comps = components === nothing ? (1:ncomp) : components
@@ -90,9 +89,7 @@ condition on the edge has to prescribe.
 """
 function edgeControlPoints(dh::IGADofHandler, side::Union{Symbol, Integer}, field_name::Symbol)
     side_index = isa(side, Symbol) ? _side_idx_for_symbol(side) : side
-    field_index = Ferrite.find_field(only(dh.subdofhandlers), field_name)
-    field_ip = Ferrite.getfieldinterpolation(dh, (1, field_index))
-    base_ip = Ferrite.get_base_interpolation(field_ip)
+    base_ip = Ferrite.get_base_interpolation(_fieldInterpolation(dh, field_name))
     return Ferrite.OrderedSet{Int}(
         Int(p) for p in toMatrix(boundary(_maybeDeref(base_ip.basis), side_index))
     )
@@ -150,8 +147,7 @@ function prescribeEdge!(
 end
 
 function _nComponents(dh::IGADofHandler, field_name::Symbol)
-    field_index = Ferrite.find_field(only(dh.subdofhandlers), field_name)
-    return Ferrite.n_components(Ferrite.getfieldinterpolation(dh, (1, field_index)))
+    return Ferrite.n_components(_fieldInterpolation(dh, field_name))
 end
 
 #=
@@ -168,10 +164,9 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
     @argcheck eltype(dbc.facets) === Int "Dirichlet conditions on an IGA grid have to be given on a set of control-point indices, e.g. via `prescribeEdge!`"
 
     dh = ch.dh
-    field_index = Ferrite.find_field(only(dh.subdofhandlers), dbc.field_name)
-    field_ip = Ferrite.getfieldinterpolation(dh, (1, field_index))
+    field_ip = _fieldInterpolation(dh, dbc.field_name)
     ncomp = Ferrite.n_components(field_ip)
-    offset = dh.field_offsets[field_index]
+    offset = dh.field_offsets[_globalFieldIndex(dh, dbc.field_name)]
 
     isempty(dbc.components) && append!(dbc.components, 1:ncomp)
     @argcheck all(c -> 1 <= c <= ncomp, dbc.components) "Components $(dbc.components) out of range for field :$(dbc.field_name) with $ncomp component(s)"

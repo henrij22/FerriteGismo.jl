@@ -11,6 +11,7 @@ point, since FerriteGismo deliberately mirrors the same API.
 Pages = [
     "heat_equation.md",
     "linear_elasticity.md",
+    "hierarchical_refinement.md",
 ]
 Depth = 1
 ```

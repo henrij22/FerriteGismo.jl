@@ -53,9 +53,10 @@ include("export/vtk.jl")
 
 # Grid
 export IGAGrid, numElements, parameterSpaceGrid, numElementsPerDirection
+export hierarchicalSubdomains
 
 # Export mesh / postprocessing
-export exportGrid, exportPoints, evaluateAtExportNodes, breakpoints
+export exportGrid, exportPoints, evaluateAtExportNodes, breakpoints, isHierarchical
 
 # Elements
 

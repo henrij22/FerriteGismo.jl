@@ -114,77 +114,127 @@ function Ferrite.close!(dh::IGADofHandler)
         name in dh.field_names || push!(dh.field_names, name)
     end
 
-    # Set initial values
-    nextdof = 1  # next free dof to distribute
+    #=
+    Dofs are numbered by the spline basis, not by the subdomain: one global block per field,
+    shared by every SubDofHandler. That is what makes the hierarchical grouping work -- the
+    subdomains there partition the *elements* of one patch, so a control point active in two
+    subdomains has to come out as the same dof in both. With a single SubDofHandler this
+    reduces to the previous numbering exactly.
+    =#
+    empty!(dh.field_offsets)
+    fieldOffsets = Dict{Symbol, Int}()
+    nextdof = 0
+    for name in dh.field_names
+        fieldOffsets[name] = nextdof
+        push!(dh.field_offsets, nextdof)
+        nextdof += _fieldDofCount(dh, name)
+    end
+
+    ncells = getncells(dh.grid)
+    cellDofs = [Int[] for _ in 1:ncells]
 
     for (sdhi, sdh) in pairs(dh.subdofhandlers)
-        nextdof = _close_subdofhandler_iga!(dh, sdh, sdhi, nextdof)
+        _collect_cell_dofs_iga!(cellDofs, dh, sdh, fieldOffsets)
+
+        sdh.ndofs_per_cell = 0
+        for ip in sdh.field_interpolations
+            sdh.ndofs_per_cell += Ferrite.get_base_interpolation(ip).nbasefuns * Ferrite.n_components(ip)
+        end
+
+        for ci in sdh.cellset
+            @assert dh.cell_to_subdofhandler[ci] == 0
+            dh.cell_to_subdofhandler[ci] = sdhi
+        end
     end
+
+    # Flatten in cell order, recording where each cell starts. The offsets cannot be a fixed
+    # stride: subdomains may carry different numbers of dofs per cell.
+    empty!(dh.cell_dofs)
+    for i in 1:ncells
+        dh.cell_dofs_offset[i] = length(dh.cell_dofs) + 1
+        append!(dh.cell_dofs, cellDofs[i])
+    end
+
     dh.ndofs = maximum(dh.cell_dofs; init = 0)
     dh.closed = true
 
     return dh
 end
 
-function _close_subdofhandler_iga!(
-        dh::IGADofHandler, sdh::SubDofHandler, sdh_index::Int,
-        nextdof::Int
-    )
-    dof_offsets = Int[]
-    sdh.ndofs_per_cell = 0
+#=
+Field lookup across subdomains.
 
-    v = Vector{Int}[]
-    for i in 1:getncells(dh.grid)
-        push!(v, Int[])
+`only(dh.subdofhandlers)` would reject a hierarchically grouped patch outright, yet every
+question these answer -- which interpolation describes a field, where its dof block starts --
+is a property of the field and its spline basis, not of any one subdomain. The subdomains of
+a hierarchical patch all carry the same fields over the same basis, so any of them answers.
+With a single SubDofHandler these reduce to the previous lookups exactly.
+=#
+
+"""
+    _globalFieldIndex(dh::IGADofHandler, name::Symbol) -> Int
+
+Index of `name` in `dh.field_names`, which is also its index into `dh.field_offsets`.
+"""
+function _globalFieldIndex(dh::IGADofHandler, name::Symbol)
+    idx = findfirst(==(name), dh.field_names)
+    idx === nothing && error("Did not find field :$name in IGADofHandler (existing fields: $(Ferrite.getfieldnames(dh))).")
+    return idx
+end
+
+"""
+    _fieldInterpolation(dh::IGADofHandler, name::Symbol) -> Interpolation
+
+The interpolation describing field `name`, taken from whichever subdomain defines it.
+"""
+function _fieldInterpolation(dh::IGADofHandler, name::Symbol)
+    for sdh in dh.subdofhandlers
+        idx = Ferrite._find_field(sdh, name)
+        idx === nothing || return sdh.field_interpolations[idx]
     end
+    return error("Did not find field :$name in IGADofHandler (existing fields: $(Ferrite.getfieldnames(dh))).")
+end
 
-    current_dof_counter = 0
+# Total dofs of one field, from the first SubDofHandler that defines it. Every subdomain
+# carrying the field must agree on this, since they share the global numbering.
+function _fieldDofCount(dh::IGADofHandler, name::Symbol)
+    for sdh in dh.subdofhandlers
+        idx = Ferrite._find_field(sdh, name)
+        idx === nothing && continue
+        ip = sdh.field_interpolations[idx]
+        return Int(TinyGismo.size(Ferrite.get_base_interpolation(ip).basis)) * Ferrite.n_components(ip)
+    end
+    return error("field :$name is not defined on any SubDofHandler")
+end
+
+function _collect_cell_dofs_iga!(
+        cellDofs::Vector{Vector{Int}}, dh::IGADofHandler, sdh::SubDofHandler,
+        fieldOffsets::Dict{Symbol, Int}
+    )
+    grid = dh.grid
     actives = gsMatrix{Int32}()
-    for ip in sdh.field_interpolations
-        kvs = map(FerriteGismo.KnotSpanWrapper{get_rdim(dh.dh.grid)}, knotSpans(Ferrite.get_base_interpolation(ip).basis))
+
+    for (name, ip) in zip(sdh.field_names, sdh.field_interpolations)
+        offset = fieldOffsets[name]
+        basis = Ferrite.get_base_interpolation(ip).basis
         ncomp = Ferrite.n_components(ip)
-        basisSize = TinyGismo.size(Ferrite.get_base_interpolation(ip).basis) * ncomp
 
-        for (i, kv) in enumerate(kvs)
-            if ip isa VectorizedInterpolation
-                active!(Ferrite.get_base_interpolation(ip).basis, Vector(kv.lower), actives)
-                activeInCell = toVector(actives)
+        for ci in sdh.cellset
+            # The elements are already on the grid, so the active set is read from there
+            # rather than re-derived from the basis.
+            activeInCell = _activeIn(basis, grid.knotSpans[ci], actives)
 
-                # Interweave dofs u1x, u1y, u1z, u2x, ...
-                # `current_dof_counter` is a dof offset, so it is added outside the
-                # component interleaving (matching fixEdge! and the grid-node evaluation).
-                for j in 1:length(activeInCell)
-                    for c in 1:ncomp
-                        push!(v[i], current_dof_counter + ncomp * (activeInCell[j] - 1) + c)
-                    end
-                end
+            if ncomp == 1
+                append!(cellDofs[ci], activeInCell .+ offset)
             else
-                active!(ip.basis, Vector(kv.lower), actives)
-                activeInCell = toVector(actives) .+ current_dof_counter
-                push!(v[i], activeInCell...)
+                # Interweave dofs u1x, u1y, u1z, u2x, ...
+                for a in activeInCell, c in 1:ncomp
+                    push!(cellDofs[ci], offset + ncomp * (a - 1) + c)
+                end
             end
         end
-        push!(dh.field_offsets, current_dof_counter)
-        current_dof_counter += basisSize
     end
-
-    for i in eachindex(dh.grid.knotSpans)
-        push!(dh.cell_dofs, v[i]...)
-    end
-
-    # Check: Is this redundant information?
-    for ip in sdh.field_interpolations
-        sdh.ndofs_per_cell += Ferrite.get_base_interpolation(ip).nbasefuns * Ferrite.n_components(ip)
-    end
-
-    dh.cell_dofs_offset .= collect(1:(sdh.ndofs_per_cell):(getncells(dh.grid) * sdh.ndofs_per_cell))
-
-    for ci in sdh.cellset
-        @assert dh.cell_to_subdofhandler[ci] == 0
-        dh.cell_to_subdofhandler[ci] = sdh_index
-    end
-
-    return maximum(dh.cell_dofs)
+    return cellDofs
 end
 
 #=

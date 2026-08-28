@@ -35,25 +35,64 @@ Ferrite.mapping_type(::IGAInterpolation) = IGAMapping()
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
 
+    if _maybeDeref(basis) isa TinyGismo.HierarchicalBasis
+        throw(
+            ArgumentError(
+                "the number of active basis functions of a hierarchical basis varies from " *
+                    "element to element, so one interpolation cannot describe the whole patch. " *
+                    "Use `hierarchicalSubdomains(grid)` to get one interpolation per group of " *
+                    "elements that share an active count, and give each its own SubDofHandler."
+            )
+        )
+    end
+
+    order = _basisOrder(basis, dim)
     if dim == 1
-        order = TinyGismo.degree(basis)
         nbasefuns = numActive(basis) # might be a problem with tensorbasis
     else
-        order = maximum(ntuple(i -> TinyGismo.degree(basis, i), dim))
         # nbasefuns is the same for every knot span, so any one will do as a probe point
-        firstSpan = KnotSpanWrapper{dim}(first(knotSpans(basis)))
-        out = gsMatrix{Int32}()
-        active!(basis, Vector(firstSpan.center), out)
-        nbasefuns = TinyGismo.rows(out)
+        firstSpan = first(_elementSpans(basis, Val(dim)))
+        nbasefuns = length(_activeIn(basis, firstSpan))
     end
 
     return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
 end
 
+"""
+    IGAInterpolation{shape}(basis, nbasefuns::Int)
+
+Build an interpolation with an explicitly given number of active basis functions.
+
+Needed for hierarchical bases, where the count varies between elements and each group of
+elements sharing a count gets its own interpolation. See [`hierarchicalSubdomains`](@ref),
+which is the intended way to obtain these.
+"""
+function IGAInterpolation{shape}(basis::BB, nbasefuns::Int) where {shape <: Ferrite.AbstractRefShape, BB}
+    order = _basisOrder(basis, Ferrite.getrefdim(shape))
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
+end
+
+# For a hierarchical basis `degree` reports the degree of the underlying tensor levels, which
+# is what the reference shape order should be -- refinement adds levels, not degree.
+_basisOrder(basis, dim::Int) =
+    dim == 1 ? Int(TinyGismo.degree(basis)) : Int(maximum(ntuple(i -> TinyGismo.degree(basis, i), dim)))
+
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
-# `qr_points` are already remapped into parameter space by `reinit!`, not the canonical
-# [-1, 1]^d reference-cell points the name suggests.
+#=
+`qr_points` are already remapped into parameter space by `reinit!`, not the canonical
+[-1, 1]^d reference-cell points the name suggests.
+
+The `nActive` guard below matters only for hierarchical bases. `Ferrite` calls these once
+at `CellValues` construction time with the raw reference points, which for an
+`IGAInterpolation` are an arbitrary location in parameter space -- the number of functions
+active there need not be the `nbasefuns` of the subdomain this interpolation belongs to.
+Those construction-time values are overwritten by `reinit!` before anything reads them, so
+they only have to not overrun the G+Smo result. Once `reinit!` has remapped the points into
+one of this subdomain's elements the count matches exactly and nothing is padded.
+=#
+_nActiveAt(raw, ip) = min(Int(TinyGismo.rows(raw)), getnbasefunctions(ip))
+
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
     ) where {rdim, IP <: IGAInterpolation}
@@ -62,8 +101,12 @@ function Ferrite.reference_shape_values!(
     valsRaw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
         eval!(ip.basis, Vector(ξ), valsRaw)
-        for i in 1:getnbasefunctions(ip)
+        n = _nActiveAt(valsRaw, ip)
+        for i in 1:n
             values[i, qp] = valsRaw[i, 1]
+        end
+        for i in (n + 1):getnbasefunctions(ip)
+            values[i, qp] = zero(eltype(values))
         end
     end
     return
@@ -81,9 +124,14 @@ function Ferrite.reference_shape_gradients_and_values!(
         eval!(ip.basis, Vector(ξ), valsRaw)
         deriv!(ip.basis, Vector(ξ), derivsRaw)
 
-        @inbounds for i in 1:getnbasefunctions(ip)
+        n = _nActiveAt(valsRaw, ip)
+        @inbounds for i in 1:n
             values[i, qp] = valsRaw[i, 1]
             gradients[i, qp] = Vec{rdim}(j -> (derivsRaw[i * (rdim) - (rdim - j), 1]))
+        end
+        @inbounds for i in (n + 1):getnbasefunctions(ip)
+            values[i, qp] = zero(eltype(values))
+            gradients[i, qp] = zero(eltype(gradients))
         end
     end
     return
@@ -104,12 +152,18 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
         deriv!(ip.basis, Vector(ξ), derivsRaw)
         deriv2!(ip.basis, Vector(ξ), derivs2Raw)
 
-        @inbounds for i in 1:getnbasefunctions(ip)
+        n = _nActiveAt(valsRaw, ip)
+        @inbounds for i in 1:n
             values[i, qp] = valsRaw[i, 1]
             gradients[i, qp] = Vec{rdim}(j -> (derivsRaw[i * (rdim) - (rdim - j), 1]))
             hessians[i, qp] = SymmetricTensor{2, rdim}(
                 rdim == 2 ? (derivs2Raw[3i - 2, 1], derivs2Raw[3i, 1], derivs2Raw[3i - 1, 1]) : (derivs2Raw[i, 1],)
             )
+        end
+        @inbounds for i in (n + 1):getnbasefunctions(ip)
+            values[i, qp] = zero(eltype(values))
+            gradients[i, qp] = zero(eltype(gradients))
+            hessians[i, qp] = zero(eltype(hessians))
         end
     end
     return
