@@ -9,16 +9,21 @@ so that it can be used like any other Ferrite interpolation, e.g. when construct
 two-dimensional tensor-product basis or `RefLine` in one dimension. The polynomial
 `order` is deduced from the degree of `basis`.
 
-Because the active basis functions differ from knot span to knot span, an
-`IGAInterpolation` is *mutable* and keeps track of the currently active element; this is
-updated automatically during `reinit!` and should not be modified by user code.
+Because the active basis functions differ from knot span to knot span, evaluating `ip`
+requires knowing which knot span is currently active. Unlike earlier versions of this
+package, that information is *not* stored on `ip` itself: `IGAInterpolation` carries no
+per-cell state at all, only the (read-only) `basis` and the number of basis functions
+active on any one knot span. `reinit!` instead remaps the quadrature points into the
+active knot span's parameter-space rectangle before handing them to `ip` for evaluation
+(see [`FerriteGismo.KnotSpanWrapper`](@ref) and `FerriteGismo.ref_to_param`), so `ip` only
+ever sees plain parametric points, never a notion of "current cell".
 
-This makes the *same* `IGAInterpolation` object (and any `CellValues`/`FacetValues` built
-from it) unsafe to `reinit!` concurrently from several tasks. `IGAInterpolation` therefore
-implements `Base.copy`, so it plugs into Ferrite's ordinary task-local pattern for parallel
-assembly: give every task its own `copy` of the `CellValues`/`FacetValues` (e.g. via
-`TaskLocalValue`), each of which gets its own private "current element" slot, and reinit!
-each independently.
+This makes `IGAInterpolation` exactly as safe to share as any other Ferrite interpolation:
+the same `ip` object (and even the same `CellValues` built from it, as long as its
+per-quadrature-point buffers aren't written concurrently) can be reused across cells and
+tasks without any special handling. Parallel assembly follows Ferrite's ordinary recipe —
+give every task its own `copy` of the `CellValues`/`CellCache` (e.g. via `TaskLocalValue`)
+for their scratch buffers, exactly as you would for a `Lagrange` interpolation.
 
 Vector-valued fields are created in the usual Ferrite way, e.g. `ip^2` for a
 two-component field.
@@ -30,10 +35,9 @@ qr = QuadratureRule{RefQuadrilateral}(2)
 cv = CellValues(qr, ip, ip)
 ```
 """
-mutable struct IGAInterpolation{shape, order, B, dim} <: ScalarInterpolation{shape, order}
+struct IGAInterpolation{shape, order, B} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
-    currentElement::KnotSpanWrapper{dim}
 end
 
 struct IGAMapping end
@@ -42,48 +46,41 @@ Ferrite.mapping_type(::IGAInterpolation) = IGAMapping()
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
 
-    currentElement = KnotSpanWrapper{dim}(first(knotSpans(basis)))
     if dim == 1
         order = TinyGismo.degree(basis)
         nbasefuns = numActive(basis) # might be a problem with tensorbasis
     else
         order = maximum(ntuple(i -> TinyGismo.degree(basis, i), dim))
+        # Any knot span will do here: the number of active basis functions is the same for
+        # all of them (an open tensor-product knot vector has uniform valence) and no
+        # particular span's data needs to be kept around afterwards.
+        firstSpan = KnotSpanWrapper{dim}(first(knotSpans(basis)))
         out = gsMatrix{Int32}()
-        active!(basis, Vector(currentElement.center), out)
+        active!(basis, Vector(firstSpan.center), out)
         nbasefuns = TinyGismo.rows(out)
     end
 
-    return IGAInterpolation{shape, order, BB, dim}(
-        basis, nbasefuns, currentElement
-    )
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
 end
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
 #=
-Ferrite's parallel-assembly recipe is to give every task its own `copy` of a `CellValues`/
-`FacetValues` (e.g. `TaskLocalValue{typeof(cv)}(() -> copy(cv))`); `copy(::FunctionValues)`
-and `copy(::GeometryMapping)` propagate this down to `copy(ip)` for the interpolation. The
-generic fallback `Base.copy(ip::Interpolation) = ip` is correct there because ordinary
-interpolations (e.g. `Lagrange`) carry no per-cell state, so every task can safely keep
-sharing the very same object. `IGAInterpolation` is the odd one out: `currentElement` is
-mutated in place by `reinit!`, so two tasks reinit!-ing the *same* object race on that
-field. Returning a new object here (sharing the read-only `basis`/`nbasefuns`, but with an
-independent `currentElement` slot) is what makes `copy(cellvalues)` produce genuinely
-task-local IGA interpolations, exactly like it already does for stateless ones.
+`qr_points` here are *not* the canonical [-1, 1]^d reference-cell points despite the
+Ferrite-mandated name: FerriteGismo's own `reinit!` (see fevalues/cellvalues.jl and
+fevalues/facetvalues.jl) remaps them into the active knot span's parameter-space rectangle
+before calling into `precompute_values!`/these methods, via `FerriteGismo.ref_to_param`.
+That is what lets `ip` stay a plain, stateless value: the one piece of information that
+varies per cell (which knot span is active) is threaded through as data (the points
+themselves), not stored on the interpolation.
 =#
-function Base.copy(ip::IGAInterpolation{shape, order, B, dim}) where {shape, order, B, dim}
-    return IGAInterpolation{shape, order, B, dim}(ip.basis, ip.nbasefuns, ip.currentElement)
-end
-
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
     ) where {rdim, IP <: IGAInterpolation}
     @boundscheck checkbounds(values, 1:getnbasefunctions(ip))
 
     valsRaw = gsMatrix()
-    for (qp, ξref) in pairs(qr_points)
-        ξ = ref_to_param(ξref, ip.currentElement.lower, ip.currentElement.upper)
+    for (qp, ξ) in pairs(qr_points)
         eval!(ip.basis, Vector(ξ), valsRaw)
         for i in 1:getnbasefunctions(ip)
             values[i, qp] = valsRaw[i, 1]
@@ -100,11 +97,9 @@ function Ferrite.reference_shape_gradients_and_values!(
 
     valsRaw = gsMatrix()
     derivsRaw = gsMatrix()
-    for (qp, ξref) in pairs(qr_points)
-        ξ = ref_to_param(ξref, ip.currentElement.lower, ip.currentElement.upper)
+    for (qp, ξ) in pairs(qr_points)
         eval!(ip.basis, Vector(ξ), valsRaw)
         deriv!(ip.basis, Vector(ξ), derivsRaw)
-
 
         @inbounds for i in 1:getnbasefunctions(ip)
             values[i, qp] = valsRaw[i, 1]
@@ -124,8 +119,7 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
     valsRaw = gsMatrix()
     derivsRaw = gsMatrix()
     derivs2Raw = gsMatrix()
-    for (qp, ξref) in pairs(qr_points)
-        ξ = ref_to_param(ξref, ip.currentElement.lower, ip.currentElement.upper)
+    for (qp, ξ) in pairs(qr_points)
         eval!(ip.basis, Vector(ξ), valsRaw)
         deriv!(ip.basis, Vector(ξ), derivsRaw)
         deriv2!(ip.basis, Vector(ξ), derivs2Raw)
@@ -155,18 +149,6 @@ Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
 
 # The vectorized interpolation must use the IGA mapping, not the identity mapping.
 Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
-
-# `VectorizedInterpolation` (unlike `IGAInterpolation`) has no `copy` of its own in Ferrite
-# either, so it also falls back to `Base.copy(ip::Interpolation) = ip` -- which would hand
-# every task-local `copy(cellvalues)` the very same, still-shared, scalar `IGAInterpolation`
-# for a vector field (`ip^2`). Since vector-valued fields are the common case, unwrap and
-# re-copy the scalar interpolation explicitly.
-function Base.copy(ipv::VectorizedInterpolation{vdim, <:Any, <:Any, <:IGAInterpolation}) where {vdim}
-    return VectorizedInterpolation{vdim}(copy(ipv.ip))
-end
-
-_iga_base(ip::IGAInterpolation) = ip
-_iga_base(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip.ip
 
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ipv::VectorizedInterpolation{vdim, shape, order, IP},

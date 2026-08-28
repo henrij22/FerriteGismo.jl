@@ -87,17 +87,20 @@ nothing # hide
 Note that the geometric interpolation passed to `CellValues` is the spline basis itself
 (`ip^2` above, or `ip`), not a Lagrange interpolation: the geometry is the patch.
 
-!!! warning "An IGAInterpolation is mutable"
-    `reinit!` stores the active knot span *in the interpolation object*. Sharing one
-    `CellValues`/`FacetValues`/interpolation between tasks that assemble different cells at
-    the same time is therefore not safe — each task needs its own copy, see
+!!! note "IGAInterpolation is stateless"
+    Older versions of this package stored the active knot span *in the interpolation
+    object*, which made sharing one interpolation between tasks assembling different cells
+    at the same time unsafe. `IGAInterpolation` no longer carries any such state — see
     [Parallel assembly](@ref) below.
 
 ## Parallel assembly
 
-`IGAInterpolation` implements `Base.copy`, so it follows Ferrite's ordinary task-local
-pattern for threaded assembly: give every task its own `copy` of the `CellValues` (rather
-than sharing the one built above), e.g. with `TaskLocalValue`:
+`IGAInterpolation` carries no per-cell state: `reinit!` remaps the quadrature points into
+the active knot span before the (shared, read-only) spline basis ever sees them, instead of
+storing "the current cell" anywhere. This makes it exactly as safe to share as a `Lagrange`
+interpolation, so parallel assembly follows Ferrite's ordinary recipe — give every task its
+own `CellCache`/`CellValues` for their private scratch buffers (e.g. with `TaskLocalValue`),
+all built from the very same `ip`:
 
 ```julia
 using Base.Threads: @threads
@@ -118,11 +121,11 @@ kes = TaskLocalValue{Matrix{Float64}}(() -> zeros(n, n))
 end
 ```
 
-`copy(cellvalues)` allocates a fresh `IGAInterpolation` per task with its own private
-"current element" slot — the underlying `basis` (the G+Smo object) is still shared, but
-only ever read, never mutated, by `reinit!`. Reusing the *same* `CellValues` object (or the
-same `IGAInterpolation`, e.g. by re-passing the one `ip` above into several `CellValues`
-used by different tasks) is still unsafe: only a `copy` gets its own slot.
+`copy(cellvalues)` here is only about giving each task its own `Nx`/`dNdx` scratch buffers —
+the same requirement any Ferrite interpolation has for threaded assembly. There is nothing
+IGA-specific to it any more: `ip` itself needs no copying at all, and reusing the very same
+`ip` (or even the same `CellValues`, as long as its scratch buffers aren't written
+concurrently) across tasks is fine.
 
 ## Evaluating a solution
 

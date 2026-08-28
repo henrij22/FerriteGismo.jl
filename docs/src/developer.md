@@ -63,21 +63,21 @@ curved geometry or a high-order field is resolved in the picture.
 
 [`IGAInterpolation`](@ref) is a `Ferrite.ScalarInterpolation` wrapping a G+Smo basis. The
 key difference from a Lagrange interpolation is that the set of active basis functions
-depends on the current knot span. To integrate with Ferrite, the interpolation is *mutable*
-and carries a `currentElement` field of type
-[`FerriteGismo.KnotSpanWrapper`](@ref), which is updated during `reinit!`.
+depends on the current knot span — but `IGAInterpolation` itself carries no notion of
+"current knot span" (or any other per-cell state): it only holds the (read-only) `basis`
+and the number of basis functions active on any one knot span.
 
-This mutable field is what makes a *shared* `IGAInterpolation` unsafe to `reinit!` from
-several tasks at once. Ferrite's own answer to per-cell state living outside the
-interpolation — task-local `copy(cellvalues)` — works here too, but only because
-`IGAInterpolation` and `VectorizedInterpolation{...,<:IGAInterpolation}` both specialize
-`Base.copy` to allocate a fresh interpolation object with its own `currentElement` slot
-(read-only fields like `basis` and `nbasefuns` are still shared). Without these methods,
-`copy` would fall through to Ferrite's generic `Base.copy(ip::Interpolation) = ip`, which
-is correct for genuinely stateless interpolations but would silently hand every "copy"
-the same shared, racy object for IGA ones. See
+Instead, `reinit!` remaps the reference-cell quadrature points into the active knot span's
+parameter-space rectangle (via `FerriteGismo.ref_to_param` and the cell's
+[`FerriteGismo.KnotSpanWrapper`](@ref)) *before* handing them to the low-level evaluation
+entry points below, so those never need to know which cell they are being called for — they
+just evaluate the (shared) basis at whatever points they are given. This is what makes
+`IGAInterpolation` exactly as safe to share across cells and tasks as an ordinary, stateless
+interpolation like `Lagrange`: there is no mutable field to race on, so no special `copy`
+handling is needed either — Ferrite's generic `Base.copy(ip::Interpolation) = ip` is
+correct here, same as for any other interpolation. See
 [Parallel assembly](@ref "Parallel assembly") in the DofHandler guide for the resulting
-usage pattern.
+usage pattern (which is just Ferrite's ordinary one).
 
 FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
 evaluate shape functions and their derivatives on the reference element:
@@ -86,8 +86,9 @@ evaluate shape functions and their derivatives on the reference element:
 - `Ferrite.reference_shape_gradients_and_values!`
 - `Ferrite.reference_shape_hessians_gradients_and_values!`
 
-These map the reference quadrature points into the current knot span (via
-`FerriteGismo.ref_to_param`) and delegate the actual evaluation to the G+Smo basis.
+Despite the "reference" in their names, the points these receive are already the
+knot-span-remapped parameter-space points computed by `reinit!` — these methods simply
+delegate the evaluation at those points to the G+Smo basis.
 
 ### Geometry mapping
 

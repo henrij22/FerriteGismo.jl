@@ -7,13 +7,16 @@ function Ferrite.reinit!(
             IP <: Union{IGAInterpolation, VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}},
         },
     }
-    # For vector fields the function interpolation is a `VectorizedInterpolation`; the
-    # active knot span is tracked on its scalar base interpolation.
-    _iga_base(cv.fun_values.ip).currentElement = cell.grid.knotSpans[cell.cellid]
-    _iga_base(cv.geo_mapping.ip).currentElement = cell.grid.knotSpans[cell.cellid]
+    # `IGAInterpolation` carries no per-cell state: instead of switching some "active
+    # element" stored on the interpolation, the reference-cell quadrature points are
+    # remapped into the active knot span's parameter-space rectangle here, before ever
+    # being handed to `ip`. This is what makes `ip` (and, transitively, `cv`'s per-task
+    # scratch buffers aside, `cv` itself) safe to share across cells and tasks.
+    knotSpan = cell.grid.knotSpans[cell.cellid]
+    points = map(ξ -> ref_to_param(ξ, knotSpan), Ferrite.getpoints(cv.qr))
 
-    Ferrite.precompute_values!(cv.fun_values, Ferrite.getpoints(cv.qr))
-    Ferrite.precompute_values!(cv.geo_mapping, Ferrite.getpoints(cv.qr))
+    Ferrite.precompute_values!(cv.fun_values, points)
+    Ferrite.precompute_values!(cv.geo_mapping, points)
 
     geo_mapping = cv.geo_mapping
     fun_values = cv.fun_values
@@ -27,7 +30,7 @@ function Ferrite.reinit!(
     dim = Ferrite.getrefdim(cv.fun_values.ip)
 
     # Volume Mapping from parent to knot span
-    rV = areaOfKnotSpan(geo_mapping.ip.currentElement) / (2^dim)
+    rV = areaOfKnotSpan(knotSpan) / (2^dim)
 
     @inbounds for (q_point, w) in enumerate(Ferrite.getweights(cv.qr))
         mapping = Ferrite.calculate_mapping(geo_mapping, q_point, current_coefs)

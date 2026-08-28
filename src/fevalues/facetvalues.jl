@@ -91,14 +91,13 @@ function Ferrite.reinit!(
     geo_mapping = Ferrite.get_geo_mapping(fv)
 
     knotSpan = cc.grid.knotSpans[cc.cellid]
-    _iga_base(fun_values.ip).currentElement = knotSpan
-    _iga_base(geo_mapping.ip).currentElement = knotSpan
 
-    # The facet quadrature points live on the reference cell, so the spline basis has to be
-    # re-evaluated for the active knot span, exactly as in the cell `reinit!`.
-    qr_points = Ferrite.getpoints(fv.fqr, facet_nr)
-    Ferrite.precompute_values!(fun_values, qr_points)
-    Ferrite.precompute_values!(geo_mapping, qr_points)
+    # The facet quadrature points live on the reference cell, so — exactly as in the cell
+    # `reinit!` — they are remapped into the active knot span's parameter-space rectangle
+    # before the spline basis (which carries no per-cell state of its own) evaluates them.
+    points = map(ξ -> ref_to_param(ξ, knotSpan), Ferrite.getpoints(fv.fqr, facet_nr))
+    Ferrite.precompute_values!(fun_values, points)
+    Ferrite.precompute_values!(geo_mapping, points)
 
     current_coefs = getfield.(cc.grid.nodes[cc.nodes], :x)
 
