@@ -65,7 +65,7 @@ lower-order pressure space) requires a second geometry/basis object.
 ## Assembly
 
 The assembly loop is a plain Ferrite loop. The only IGA-specific part is that `reinit!`
-switches the active knot span of the interpolation:
+switches the active knot span:
 
 ```@example dofs
 qr = QuadratureRule{RefQuadrilateral}(3)
@@ -86,46 +86,6 @@ nothing # hide
 
 Note that the geometric interpolation passed to `CellValues` is the spline basis itself
 (`ip^2` above, or `ip`), not a Lagrange interpolation: the geometry is the patch.
-
-!!! note "IGAInterpolation is stateless"
-    Older versions of this package stored the active knot span *in the interpolation
-    object*, which made sharing one interpolation between tasks assembling different cells
-    at the same time unsafe. `IGAInterpolation` no longer carries any such state — see
-    [Parallel assembly](@ref) below.
-
-## Parallel assembly
-
-`IGAInterpolation` carries no per-cell state: `reinit!` remaps the quadrature points into
-the active knot span before the (shared, read-only) spline basis ever sees them, instead of
-storing "the current cell" anywhere. This makes it exactly as safe to share as a `Lagrange`
-interpolation, so parallel assembly follows Ferrite's ordinary recipe — give every task its
-own `CellCache`/`CellValues` for their private scratch buffers (e.g. with `TaskLocalValue`),
-all built from the very same `ip`:
-
-```julia
-using Base.Threads: @threads
-using TaskLocalValues: TaskLocalValue # as used in Ferrite's own threaded-assembly recipe
-
-n = ndofs_per_cell(dh)
-ccs = TaskLocalValue{CellCache}(() -> CellCache(dh))
-cvs = TaskLocalValue{typeof(cellvalues)}(() -> copy(cellvalues))
-kes = TaskLocalValue{Matrix{Float64}}(() -> zeros(n, n))
-
-@threads for cellid in 1:getncells(dh)
-    cc, cv, ke = ccs[], cvs[], kes[]
-    reinit!(cc, cellid)
-    reinit!(cv, cc)
-    fill!(ke, 0.0)
-    # ... element contributions, using shape_value/shape_gradient/getdetJdV as usual
-    assemble!(assembler, celldofs(cc), ke) # a thread-safe assembler is required too
-end
-```
-
-`copy(cellvalues)` here is only about giving each task its own `Nx`/`dNdx` scratch buffers —
-the same requirement any Ferrite interpolation has for threaded assembly. There is nothing
-IGA-specific to it any more: `ip` itself needs no copying at all, and reusing the very same
-`ip` (or even the same `CellValues`, as long as its scratch buffers aren't written
-concurrently) across tasks is fine.
 
 ## Evaluating a solution
 

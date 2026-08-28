@@ -65,19 +65,12 @@ curved geometry or a high-order field is resolved in the picture.
 key difference from a Lagrange interpolation is that the set of active basis functions
 depends on the current knot span — but `IGAInterpolation` itself carries no notion of
 "current knot span" (or any other per-cell state): it only holds the (read-only) `basis`
-and the number of basis functions active on any one knot span.
-
-Instead, `reinit!` remaps the reference-cell quadrature points into the active knot span's
-parameter-space rectangle (via `FerriteGismo.ref_to_param` and the cell's
-[`FerriteGismo.KnotSpanWrapper`](@ref)) *before* handing them to the low-level evaluation
-entry points below, so those never need to know which cell they are being called for — they
-just evaluate the (shared) basis at whatever points they are given. This is what makes
-`IGAInterpolation` exactly as safe to share across cells and tasks as an ordinary, stateless
-interpolation like `Lagrange`: there is no mutable field to race on, so no special `copy`
-handling is needed either — Ferrite's generic `Base.copy(ip::Interpolation) = ip` is
-correct here, same as for any other interpolation. See
-[Parallel assembly](@ref "Parallel assembly") in the DofHandler guide for the resulting
-usage pattern (which is just Ferrite's ordinary one).
+and the number of basis functions active on any one knot span. `reinit!` instead remaps the
+reference-cell quadrature points into the active knot span's parameter-space rectangle (via
+`FerriteGismo.ref_to_param` and the cell's [`FerriteGismo.KnotSpanWrapper`](@ref)) *before*
+handing them to the low-level evaluation entry points below, so those never need to know
+which cell they are being called for. This makes `IGAInterpolation` exactly as safe to
+share across cells and threads as an ordinary, stateless interpolation like `Lagrange`.
 
 FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
 evaluate shape functions and their derivatives on the reference element:

@@ -10,20 +10,13 @@ two-dimensional tensor-product basis or `RefLine` in one dimension. The polynomi
 `order` is deduced from the degree of `basis`.
 
 Because the active basis functions differ from knot span to knot span, evaluating `ip`
-requires knowing which knot span is currently active. Unlike earlier versions of this
-package, that information is *not* stored on `ip` itself: `IGAInterpolation` carries no
-per-cell state at all, only the (read-only) `basis` and the number of basis functions
-active on any one knot span. `reinit!` instead remaps the quadrature points into the
-active knot span's parameter-space rectangle before handing them to `ip` for evaluation
-(see [`FerriteGismo.KnotSpanWrapper`](@ref) and `FerriteGismo.ref_to_param`), so `ip` only
-ever sees plain parametric points, never a notion of "current cell".
-
-This makes `IGAInterpolation` exactly as safe to share as any other Ferrite interpolation:
-the same `ip` object (and even the same `CellValues` built from it, as long as its
-per-quadrature-point buffers aren't written concurrently) can be reused across cells and
-tasks without any special handling. Parallel assembly follows Ferrite's ordinary recipe —
-give every task its own `copy` of the `CellValues`/`CellCache` (e.g. via `TaskLocalValue`)
-for their scratch buffers, exactly as you would for a `Lagrange` interpolation.
+requires knowing which knot span is currently active. `IGAInterpolation` itself carries no
+such per-cell state, only the (read-only) `basis` and the number of basis functions active
+on any one knot span: `reinit!` remaps the quadrature points into the active knot span's
+parameter-space rectangle before handing them to `ip` (see
+[`FerriteGismo.KnotSpanWrapper`](@ref) and `FerriteGismo.ref_to_param`). This makes
+`IGAInterpolation` just as safe to share across cells and threads as any other Ferrite
+interpolation.
 
 Vector-valued fields are created in the usual Ferrite way, e.g. `ip^2` for a
 two-component field.
@@ -65,15 +58,9 @@ end
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
-#=
-`qr_points` here are *not* the canonical [-1, 1]^d reference-cell points despite the
-Ferrite-mandated name: FerriteGismo's own `reinit!` (see fevalues/cellvalues.jl and
-fevalues/facetvalues.jl) remaps them into the active knot span's parameter-space rectangle
-before calling into `precompute_values!`/these methods, via `FerriteGismo.ref_to_param`.
-That is what lets `ip` stay a plain, stateless value: the one piece of information that
-varies per cell (which knot span is active) is threaded through as data (the points
-themselves), not stored on the interpolation.
-=#
+# `qr_points` are already the active knot span's parameter-space points, remapped by
+# `reinit!` (see fevalues/cellvalues.jl and fevalues/facetvalues.jl) via `ref_to_param` --
+# not the canonical [-1, 1]^d reference-cell points the Ferrite-mandated name suggests.
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ip::IP, qr_points::AbstractVector{<:Vec{rdim}}
     ) where {rdim, IP <: IGAInterpolation}
