@@ -26,6 +26,7 @@ makedocs(;
             "Tutorials overview" => "tutorials/index.md",
             "tutorials/heat_equation.md",
             "tutorials/linear_elasticity.md",
+            "tutorials/hierarchical_refinement.md",
         ],
         "Topic Guides" => [
             "Topic guides overview" => "topic_guides/index.md",
@@ -34,6 +35,7 @@ makedocs(;
             "topic_guides/boundary_conditions.md",
             "topic_guides/forces.md",
             "topic_guides/postprocessing.md",
+            "topic_guides/hierarchical_splines.md",
         ],
         "API Reference" => "api_reference.md",
         "Developer documentation" => "developer.md",

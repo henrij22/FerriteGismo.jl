@@ -21,12 +21,14 @@ spline control points.
 IGAGrid
 numElements
 numElementsPerDirection
+isHierarchical
 ```
 
 ## Interpolations
 
 ```@docs
 IGAInterpolation
+hierarchicalSubdomains
 ```
 
 ## Degrees of freedom

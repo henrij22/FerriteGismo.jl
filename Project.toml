@@ -1,6 +1,6 @@
 name = "FerriteGismo"
 uuid = "a548586d-644c-43c2-b402-969e06ddf6f5"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
 
 [workspace]
@@ -20,7 +20,7 @@ Ferrite = "1.4"
 Reexport = "1"
 SparseArrays = "1"
 Tensors = "1"
-TinyGismo = "0.3"
+TinyGismo = "0.4"
 julia = "1.11"
 
 [extras]

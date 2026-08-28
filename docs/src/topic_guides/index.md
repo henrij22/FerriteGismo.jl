@@ -12,6 +12,7 @@ Pages = [
     "boundary_conditions.md",
     "forces.md",
     "postprocessing.md",
+    "hierarchical_splines.md",
 ]
 Depth = 1
 ```

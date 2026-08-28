@@ -17,6 +17,14 @@ struct KnotSpanWrapper{dim}
     function KnotSpanWrapper{dim}(knotSpan::TinyGismo.KnotSpan) where {dim}
         return new{dim}(toVec(Vec{dim}, centerPoint(knotSpan)), toVec(Vec{dim}, lowerCorner(knotSpan)), toVec(Vec{dim}, upperCorner(knotSpan)))
     end
+
+    # Hierarchical bases have no `TinyGismo.KnotSpan`s to wrap -- their elements come out of
+    # `elementBoxes` as plain corner coordinates, so build the wrapper from those instead.
+    function KnotSpanWrapper{dim}(lower::AbstractVector, upper::AbstractVector) where {dim}
+        lo = Vec{dim}(ntuple(i -> Float64(lower[i]), dim))
+        up = Vec{dim}(ntuple(i -> Float64(upper[i]), dim))
+        return new{dim}((lo + up) / 2, lo, up)
+    end
 end
 
 toVec(::Type{Vec{dim}}, vec::gsVector{T}) where {dim, T} = Vec{dim, T}(toVector(vec))
@@ -66,3 +74,36 @@ end
 
 _maybeDeref(obj::TinyGismo.CxxWrap.CxxWrapCore.ConstCxxRef) = obj[]
 _maybeDeref(obj) = obj
+
+"""
+    _elementSpans(basis, ::Val{dim}) -> Vector{KnotSpanWrapper{dim}}
+
+The elements of `basis` in parameter space, one wrapper per element.
+
+Tensor-product bases go through `TinyGismo.knotSpans`. Hierarchical bases cannot -- G+Smo's
+hierarchical domain iterator is not safely copyable, so TinyGismo refuses `knotSpans` for
+them -- and use `elementBoxes` instead.
+"""
+_elementSpans(basis, v::Val) = _elementSpans(_maybeDeref(basis), v)
+
+_elementSpans(basis::gsBasis, ::Val{dim}) where {dim} = map(KnotSpanWrapper{dim}, knotSpans(basis))
+
+function _elementSpans(basis::TinyGismo.HierarchicalBasis, ::Val{dim}) where {dim}
+    boxes = toMatrix(elementBoxes(basis))
+    return [
+        KnotSpanWrapper{dim}(view(boxes, 1:dim, j), view(boxes, (dim + 1):(2dim), j))
+            for j in axes(boxes, 2)
+    ]
+end
+
+"""
+    _activeIn(basis, span::KnotSpanWrapper, out::gsMatrix{Int32}) -> Vector{Int32}
+
+The basis functions active on one element, as global 1-based indices. Evaluated at the
+element *center*: on a hierarchical mesh a corner can lie on a level boundary, where the
+active set is not this element's.
+"""
+function _activeIn(basis, span::KnotSpanWrapper, out = gsMatrix{Int32}())
+    active!(basis, Vector(span.center), out)
+    return toVector(out)
+end

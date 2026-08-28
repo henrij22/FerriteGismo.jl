@@ -24,6 +24,7 @@ entries.
 function breakpoints(grid::IGAGrid{sdim, rdim}, dir::Integer; subdivision::Int = 1) where {sdim, rdim}
     @argcheck 1 <= dir <= rdim "Direction $dir out of range for a $rdim-dimensional parameter space"
     @argcheck subdivision >= 1 "subdivision must be at least 1"
+    @argcheck !isHierarchical(grid) "a hierarchical grid has no per-direction breakpoints: its elements do not form a tensor-product lattice. Use `exportPoints`/`exportGrid`, which build the mesh element by element."
 
     knots = sort!(unique!([ks.lower[dir] for ks in grid.knotSpans]))
     push!(knots, maximum(ks.upper[dir] for ks in grid.knotSpans))
@@ -40,6 +41,70 @@ function breakpoints(grid::IGAGrid{sdim, rdim}, dir::Integer; subdivision::Int =
 end
 
 """
+    isHierarchical(grid::IGAGrid) -> Bool
+
+Whether `grid` is backed by a hierarchical (HB/THB) basis rather than a tensor-product one.
+Such a patch has no tensor-product element lattice, which the export machinery branches on.
+"""
+isHierarchical(grid::IGAGrid) =
+    _maybeDeref(TinyGismo.basis(grid.geometry)) isa TinyGismo.HierarchicalBasis
+
+#=
+Export mesh of a hierarchical patch.
+
+The tensor path below builds the Cartesian product of the per-direction element corners. On
+a hierarchical patch that lattice is not the mesh -- it contains cells that were never
+refined into, and grows as the product of every level's breakpoints -- so elements are
+emitted one at a time, each with its own block of nodes.
+
+Nodes are duplicated along element boundaries as a result, which is harmless for drawing and
+for pointwise field values, and is what lets each element be drawn exactly.
+=#
+function _elementwiseExportPoints(grid::IGAGrid{sdim, 1}, subdivision::Int) where {sdim}
+    return [
+        Vec{1}((ξ,))
+            for ks in grid.knotSpans
+            for ξ in range(ks.lower[1], ks.upper[1]; length = subdivision + 1)
+    ]
+end
+
+function _elementwiseExportPoints(grid::IGAGrid{sdim, 2}, subdivision::Int) where {sdim}
+    points = Vec{2, Float64}[]
+    for ks in grid.knotSpans
+        ξs = range(ks.lower[1], ks.upper[1]; length = subdivision + 1)
+        ηs = range(ks.lower[2], ks.upper[2]; length = subdivision + 1)
+        for η in ηs, ξ in ξs
+            push!(points, Vec{2}((ξ, η)))
+        end
+    end
+    return points
+end
+
+function _elementwiseExportCells(grid::IGAGrid{sdim, 1}, subdivision::Int) where {sdim}
+    n = subdivision + 1
+    return [
+        Line(((e - 1) * n + i, (e - 1) * n + i + 1))
+            for e in eachindex(grid.knotSpans) for i in 1:subdivision
+    ]
+end
+
+function _elementwiseExportCells(grid::IGAGrid{sdim, 2}, subdivision::Int) where {sdim}
+    n = subdivision + 1
+    cells = Quadrilateral[]
+    for e in eachindex(grid.knotSpans)
+        offset = (e - 1) * n^2
+        nodeid(i, j) = offset + (j - 1) * n + i
+        for j in 1:subdivision, i in 1:subdivision
+            push!(
+                cells,
+                Quadrilateral((nodeid(i, j), nodeid(i + 1, j), nodeid(i + 1, j + 1), nodeid(i, j + 1)))
+            )
+        end
+    end
+    return cells
+end
+
+"""
     exportPoints(grid::IGAGrid; subdivision::Int = 1) -> Vector{Vec{rdim}}
 
 Parametric coordinates of the export mesh nodes of `grid`, ordered lexicographically with
@@ -49,10 +114,12 @@ These are the points at which fields are evaluated for visualization; the physic
 positions of the same points are the nodes of [`exportGrid`](@ref).
 """
 function exportPoints(grid::IGAGrid{sdim, 1}; subdivision::Int = 1) where {sdim}
+    isHierarchical(grid) && return _elementwiseExportPoints(grid, subdivision)
     return [Vec{1}((ξ,)) for ξ in breakpoints(grid, 1; subdivision)]
 end
 
 function exportPoints(grid::IGAGrid{sdim, 2}; subdivision::Int = 1) where {sdim}
+    isHierarchical(grid) && return _elementwiseExportPoints(grid, subdivision)
     ξs = breakpoints(grid, 1; subdivision)
     ηs = breakpoints(grid, 2; subdivision)
     return [Vec{2}((ξ, η)) for η in ηs for ξ in ξs]
@@ -60,11 +127,13 @@ end
 
 # Cells over the lattice of `exportPoints`, in the same lexicographic ordering
 function exportCells(grid::IGAGrid{sdim, 1}; subdivision::Int = 1) where {sdim}
+    isHierarchical(grid) && return _elementwiseExportCells(grid, subdivision)
     n = length(breakpoints(grid, 1; subdivision))
     return [Line((i, i + 1)) for i in 1:(n - 1)]
 end
 
 function exportCells(grid::IGAGrid{sdim, 2}; subdivision::Int = 1) where {sdim}
+    isHierarchical(grid) && return _elementwiseExportCells(grid, subdivision)
     nξ = length(breakpoints(grid, 1; subdivision))
     nη = length(breakpoints(grid, 2; subdivision))
     nodeid(i, j) = (j - 1) * nξ + i
@@ -126,10 +195,8 @@ function evaluateAtExportNodes(
         dh::IGADofHandler, u::AbstractVector, fieldname::Symbol; subdivision::Int = 1
     )
     fieldname ∈ Ferrite.getfieldnames(dh) || error("Field $fieldname not found.")
-    sdh = only(dh.subdofhandlers)
-    field_index = Ferrite.find_field(sdh, fieldname)
-    ip = Ferrite.getfieldinterpolation(dh, (1, field_index))
-    offset = dh.field_offsets[field_index]
+    ip = _fieldInterpolation(dh, fieldname)
+    offset = dh.field_offsets[_globalFieldIndex(dh, fieldname)]
 
     return [interpolate(ip, u, Vector(ξ); offset) for ξ in exportPoints(Ferrite.get_grid(dh); subdivision)]
 end

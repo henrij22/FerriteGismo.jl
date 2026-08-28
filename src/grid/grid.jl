@@ -59,12 +59,11 @@ function IGAGrid{sdim, rdim}(geometry::G) where {G <: gsGeometry, sdim, rdim}
     nodes = IGACell[] # initialize with undef
     basis = TinyGismo.basis(geometry)
 
-    kvs = map(FerriteGismo.KnotSpanWrapper{rdim}, knotSpans(basis))
+    kvs = _elementSpans(basis, Val(rdim))
 
     actives = gsMatrix{Int32}()
     for kv in kvs
-        active!(basis, Vector(kv.lower), actives)
-        push!(nodes, IGACell{rdim}(toVector(actives)))
+        push!(nodes, IGACell{rdim}(_activeIn(basis, kv, actives)))
     end
 
     return IGAGrid{sdim, rdim, G}(nodes, cc, geometry, kvs)
@@ -97,6 +96,7 @@ Return the number of (non-empty) knot spans / Bézier elements of `grid` along t
 parametric direction `dir`.
 """
 function numElementsPerDirection(grid::IGAGrid{sdim, 2}, dir::Integer) where {sdim}
+    @argcheck !isHierarchical(grid) "a hierarchical grid has no per-direction element count: its elements do not form a tensor-product lattice. Use `getncells(grid)` for the total."
     # Counted from the knot spans rather than asked of the basis: for a patch whose knots
     # were inserted non-uniformly, `TinyGismo.numElements(basis, dir)` does not report the
     # number of spans of that direction, and the product over the directions then
@@ -141,3 +141,48 @@ function areaOfKnotSpan(knotSpan::KnotSpanWrapper{1})
 end
 
 # Todo physical_to_param
+
+# Reference shape of a `rdim`-dimensional knot span.
+_refShape(::Val{1}) = RefLine
+_refShape(::Val{2}) = RefQuadrilateral
+_refShape(::Val{3}) = RefHexahedron
+
+"""
+    hierarchicalSubdomains(grid::IGAGrid) -> Vector{Tuple{Vector{Int}, IGAInterpolation}}
+
+Partition the cells of a hierarchical grid into groups sharing a number of active basis
+functions, and give each group its own [`IGAInterpolation`](@ref).
+
+On a hierarchical patch that number varies between elements, while
+`Ferrite.getnbasefunctions` is one number per interpolation. Grouping restores a constant
+count within each group, which is what a `SubDofHandler` needs. A tensor grid yields a
+single group.
+
+Groups come in ascending order of active count, each a `(cellset, ip)` pair for one
+`SubDofHandler`:
+
+```julia
+dh = IGADofHandler(grid)
+for (cells, ip) in hierarchicalSubdomains(grid)
+    sdh = SubDofHandler(dh, cells)
+    add!(sdh, :u, ip)
+end
+close!(dh)
+```
+
+All groups share one basis, so dofs stay numbered globally over the control points.
+"""
+function hierarchicalSubdomains(grid::IGAGrid{sdim, rdim}) where {sdim, rdim}
+    basis = TinyGismo.basis(grid.geometry)
+    shape = _refShape(Val(rdim))
+
+    groups = Dict{Int, Vector{Int}}()
+    for (ci, cell) in pairs(grid.cells)
+        push!(get!(groups, length(cell.nodes), Int[]), ci)
+    end
+
+    return [
+        (cells, IGAInterpolation{shape}(basis, n))
+            for (n, cells) in sort!(collect(groups); by = first)
+    ]
+end
