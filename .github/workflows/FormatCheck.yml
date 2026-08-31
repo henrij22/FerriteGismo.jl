@@ -3,7 +3,7 @@ name: format-check
 on:
   push:
     branches:
-      - 'master'
+      - 'main'
       - 'release-'
     tags: '*'
   pull_request:
@@ -19,4 +19,4 @@ jobs:
       # - uses: julia-actions/cache@v2
       - uses: fredrikekre/runic-action@v1
         with:
-          version: '1.7.0'
+          version: '1.10.0'
