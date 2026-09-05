@@ -1,8 +1,17 @@
+#=
+Ferrite 1.7 changed `CellCache` from a mutable struct with `cellid::Int` to an immutable one
+whose `cellid` is a one-element array (so that caches can be built on views/GPU arrays).
+The constructor below is shared with older versions by feeding it whichever the loaded
+Ferrite expects; `Ferrite.cellid(cc)` is the version-agnostic way to read it back.
+=#
+const CELLCACHE_HAS_ARRAY_CELLID = pkgversion(Ferrite) >= v"1.7"
+_initial_cellid() = CELLCACHE_HAS_ARRAY_CELLID ? [-1] : -1
+
 function Ferrite.CellCache(grid::IGAGrid{sdim, rdim}, flags::UpdateFlags = UpdateFlags()) where {sdim, rdim}
     N = Ferrite.nnodes_per_cell(grid, 1) # nodes and coords will be resized in `reinit!`
     nodes = zeros(Int, N)
     coords = zeros(Vec{sdim, Ferrite.get_coordinate_eltype(grid)}, N)
-    return CellCache(flags, grid, -1, nodes, coords, nothing, Int[])
+    return CellCache(flags, grid, _initial_cellid(), nodes, coords, nothing, Int[])
 end
 
 function Ferrite.CellCache(
@@ -13,7 +22,7 @@ function Ferrite.CellCache(
     nodes = zeros(Int, N)
     coords = zeros(Vec{dim, Ferrite.get_coordinate_eltype(Ferrite.get_grid(dh))}, N)
     celldofs = zeros(Int, n)
-    return CellCache(flags, Ferrite.get_grid(dh), -1, nodes, coords, dh, celldofs)
+    return CellCache(flags, Ferrite.get_grid(dh), _initial_cellid(), nodes, coords, dh, celldofs)
 end
 
 function Ferrite.celldofs!(global_dofs::AbstractVector{Int}, dh::IGADofHandler, i::Int)
