@@ -173,6 +173,17 @@ function _globalFieldIndex(dh::IGADofHandler, name::Symbol)
 end
 
 """
+    fieldOffset(dh::IGADofHandler, field_name::Symbol) -> Int
+
+The dof before `field_name`'s global block, i.e. `u[fieldOffset(dh, f) + ncomp * (cp - 1) + c]`.
+
+Each field occupies one contiguous block, shared by every subdomain carrying it. Use this
+rather than indexing `dh.field_offsets` with a `SubDofHandler`-local field index; the two
+coincide only for a single subdomain.
+"""
+fieldOffset(dh::IGADofHandler, field_name::Symbol) = dh.field_offsets[_globalFieldIndex(dh, field_name)]
+
+"""
     _fieldInterpolation(dh::IGADofHandler, name::Symbol) -> Interpolation
 
 The interpolation describing field `name`, taken from whichever subdomain defines it.
@@ -185,16 +196,27 @@ function _fieldInterpolation(dh::IGADofHandler, name::Symbol)
     return error("Did not find field :$name in IGADofHandler (existing fields: $(Ferrite.getfieldnames(dh))).")
 end
 
-# Total dofs of one field. Every subdomain carrying it must agree, since they share the
-# global numbering.
+# Total dofs of one field. Subdomains share a field's global block, so they must agree on its
+# size; numbering it from the first alone would silently corrupt the rest.
 function _fieldDofCount(dh::IGADofHandler, name::Symbol)
+    count = nothing
     for sdh in dh.subdofhandlers
         idx = Ferrite._find_field(sdh, name)
         idx === nothing && continue
         ip = sdh.field_interpolations[idx]
-        return Int(TinyGismo.size(Ferrite.get_base_interpolation(ip).basis)) * Ferrite.n_components(ip)
+        n = Int(TinyGismo.size(Ferrite.get_base_interpolation(ip).basis)) * Ferrite.n_components(ip)
+        if count === nothing
+            count = n
+        elseif count != n
+            error(
+                "field :$name is described by different interpolations on different " *
+                    "SubDofHandlers ($count vs $n dofs). Subdomains of one patch share a " *
+                    "field's dofs, so they must use the same basis."
+            )
+        end
     end
-    return error("field :$name is not defined on any SubDofHandler")
+    count === nothing && error("field :$name is not defined on any SubDofHandler")
+    return count
 end
 
 function _collect_cell_dofs_iga!(
