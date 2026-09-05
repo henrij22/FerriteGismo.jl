@@ -90,7 +90,7 @@ function Ferrite.reinit!(
     fun_values = Ferrite.get_fun_values(fv)
     geo_mapping = Ferrite.get_geo_mapping(fv)
 
-    knotSpan = cc.grid.knotSpans[cc.cellid]
+    knotSpan = cc.grid.knotSpans[Ferrite.cellid(cc)]
     dim = Ferrite.getrefdim(fun_values.ip)
 
     # Remap the facet quadrature points into the active knot span, as in the cell reinit!
