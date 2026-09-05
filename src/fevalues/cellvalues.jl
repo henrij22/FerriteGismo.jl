@@ -10,7 +10,7 @@ function Ferrite.reinit!(
     # Remap the reference-cell quadrature points into the active knot span's parameter
     # space, instead of storing "the active knot span" on the interpolation itself.
     # ref_to_param returns a plain Vector; re-wrap it since precompute_values! needs Vec.
-    knotSpan = cell.grid.knotSpans[cell.cellid]
+    knotSpan = cell.grid.knotSpans[Ferrite.cellid(cell)]
     dim = Ferrite.getrefdim(cv.fun_values.ip)
     points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(cv.qr)]
 
