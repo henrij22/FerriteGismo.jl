@@ -61,7 +61,7 @@ export exportGrid, exportPoints, evaluateAtExportNodes, breakpoints, isHierarchi
 # Elements
 
 # Dofs
-export IGADofHandler, fixEdge!, prescribeEdge!, edgeControlPoints
+export IGADofHandler, fixEdge!, prescribeEdge!, edgeControlPoints, fieldOffset
 
 # Interpolations
 export IGAInterpolation

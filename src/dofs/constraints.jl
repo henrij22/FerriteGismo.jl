@@ -166,7 +166,7 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
     dh = ch.dh
     field_ip = _fieldInterpolation(dh, dbc.field_name)
     ncomp = Ferrite.n_components(field_ip)
-    offset = dh.field_offsets[_globalFieldIndex(dh, dbc.field_name)]
+    offset = fieldOffset(dh, dbc.field_name)
 
     isempty(dbc.components) && append!(dbc.components, 1:ncomp)
     @argcheck all(c -> 1 <= c <= ncomp, dbc.components) "Components $(dbc.components) out of range for field :$(dbc.field_name) with $ncomp component(s)"

@@ -196,7 +196,7 @@ function evaluateAtExportNodes(
     )
     fieldname ∈ Ferrite.getfieldnames(dh) || error("Field $fieldname not found.")
     ip = _fieldInterpolation(dh, fieldname)
-    offset = dh.field_offsets[_globalFieldIndex(dh, fieldname)]
+    offset = fieldOffset(dh, fieldname)
 
     return [interpolate(ip, u, Vector(ξ); offset) for ξ in exportPoints(Ferrite.get_grid(dh); subdivision)]
 end
