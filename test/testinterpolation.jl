@@ -19,8 +19,6 @@
 end
 
 @testitem "interpolate of a scalar IGA field" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -48,7 +46,6 @@ end
 end
 
 @testitem "interpolate of a vector-valued IGA field" begin
-    using Ferrite
 
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)

@@ -1,6 +1,4 @@
 @testitem "evaluate_at_grid_nodes returns the field on the parameter-space grid" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -35,8 +33,6 @@
 end
 
 @testitem "L2 projection of quadrature point data" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -91,7 +87,7 @@ end
 end
 
 @testitem "The export mesh follows the knot spans" begin
-    using Ferrite, LinearAlgebra
+    using LinearAlgebra
 
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
@@ -128,7 +124,7 @@ end
 end
 
 @testitem "Subdivision resolves geometry and field" begin
-    using Ferrite, LinearAlgebra
+    using LinearAlgebra
 
     r_in, r_out = 1.0, 2.0
     geometry = createNurbsQuarterAnnulus(r_in, r_out)
