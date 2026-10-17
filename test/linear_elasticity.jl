@@ -8,7 +8,7 @@
 # boundary facet set of the right edge.
 
 @testitem "Linear Elasticity Test" begin
-    using Ferrite, SparseArrays
+    using SparseArrays
 
     # --- Geometry, grid, interpolation ---
     geometry = createBSplineSquare(1.0)
