@@ -1,6 +1,4 @@
 @testitem "Vector-valued IGA interpolation" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)

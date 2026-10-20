@@ -1,6 +1,4 @@
 @testitem "FacetValues on the unit square" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -40,7 +38,7 @@
 end
 
 @testitem "FacetValues on a curved boundary (quarter annulus)" begin
-    using Ferrite, LinearAlgebra
+    using LinearAlgebra
 
     r_in, r_out = 1.0, 2.0
     geometry = createNurbsQuarterAnnulus(r_in, r_out)
@@ -81,8 +79,6 @@ end
 end
 
 @testitem "FacetValues with a vector-valued field" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)

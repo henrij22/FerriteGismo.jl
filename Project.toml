@@ -4,7 +4,7 @@ version = "0.6.2"
 authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
 
 [workspace]
-projects = ["docs"]
+projects = ["docs", "test"]
 
 [deps]
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
@@ -18,16 +18,6 @@ TinyGismo = "5750890c-44ac-400c-9e9d-1788b5a8ead6"
 ArgCheck = "2"
 Ferrite = "1.4"
 Reexport = "1"
-SparseArrays = "1"
 Tensors = "1"
 TinyGismo = "0.4"
 julia = "1.11"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
-TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
-SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-
-[targets]
-test = ["Test", "TestItems", "TestItemRunner", "SparseArrays"]

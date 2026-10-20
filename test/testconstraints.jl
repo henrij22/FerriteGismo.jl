@@ -1,6 +1,4 @@
 @testitem "prescribeEdge! on a vector field" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -42,7 +40,7 @@
 end
 
 @testitem "Prescribed displacement of a whole edge is met exactly" begin
-    using Ferrite, SparseArrays
+    using SparseArrays
 
     # Uniaxial stretch of the unit square: prescribing the same value on every control
     # point of an edge reproduces a constant edge displacement exactly (partition of unity).
@@ -100,8 +98,6 @@ end
 end
 
 @testitem "edgeControlPoints picks up the control points of each side" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)      # quadratic
     uniformRefine!(geometry, 2)      # 3 x 3 elements -> 5 x 5 control points
@@ -140,8 +136,6 @@ end
 end
 
 @testitem "prescribeEdge! follows the time / load factor" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -183,8 +177,6 @@ end
 end
 
 @testitem "prescribeEdge! evaluates f at the control-point coordinates" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 2)
@@ -209,8 +201,6 @@ end
 end
 
 @testitem "A zero prescribeEdge! constrains the same dofs as fixEdge!" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 1)
@@ -236,8 +226,6 @@ end
 end
 
 @testitem "prescribeEdge! on a scalar field" begin
-    using Ferrite
-
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 1)
@@ -262,7 +250,6 @@ end
 end
 
 @testitem "Invalid IGA Dirichlet conditions are rejected" begin
-    using Ferrite
 
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)

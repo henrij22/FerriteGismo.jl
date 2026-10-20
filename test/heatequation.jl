@@ -2,7 +2,7 @@
 # for explanations of this tutorial
 
 @testitem "Heat Equation Test" begin
-    using Ferrite, SparseArrays
+    using SparseArrays
 
     geometry = createBSplineSquare(2.0)
     uniformRefine!(geometry, 3)
