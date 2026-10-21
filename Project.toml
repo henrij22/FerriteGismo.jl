@@ -17,6 +17,7 @@ TinyGismo = "5750890c-44ac-400c-9e9d-1788b5a8ead6"
 [compat]
 ArgCheck = "2"
 Ferrite = "1.4"
+LinearAlgebra = "1.11"
 Reexport = "1"
 Tensors = "1"
 TinyGismo = "0.4"
