@@ -10,6 +10,7 @@ using LinearAlgebra
 # Utility packages
 using Reexport
 using ArgCheck
+import WriteVTK
 
 # Backend not exported
 using TinyGismo: gsBasis, gsGeometry
@@ -46,6 +47,7 @@ include("fevalues/geometry_mapping.jl")
 include("export/exportmesh.jl")
 include("export/l2projection.jl")
 include("export/vtk.jl")
+include("export/bezier.jl")
 
 # ==============================================================================
 # EXPORTS
@@ -57,6 +59,7 @@ export hierarchicalSubdomains
 
 # Export mesh / postprocessing
 export exportGrid, exportPoints, evaluateAtExportNodes, breakpoints, isHierarchical
+export VTKBezierFile
 
 # Elements
 

@@ -148,6 +148,12 @@ types — `VTKGridFile`, `VTKHDFGridFile`, `write_solution`, `write_projection`,
 `evaluate_at_grid_nodes`, `L2Projector`, `project` — so downstream code that writes
 `write_solution(vtk, dh, u)` keeps working unchanged.
 
+The exact export, [`VTKBezierFile`](@ref), cannot go through an export mesh: it writes the
+Bézier cells with WriteVTK directly. The extraction operator of each knot span is computed
+from G+Smo evaluations at points inside the span, which covers B-spline, NURBS and
+hierarchical bases alike. For the point data it reuses `Ferrite._vtk_write_node_data`, which
+converts tensors to their Paraview components.
+
 The projector for quadrature-point data (e.g. stresses) is likewise self-contained: it
 assembles the spline mass matrix with `CellValues`, `allocate_matrix` and
 `start_assemble`/`assemble!`, factorizes it once, and solves for the control-point values

@@ -167,3 +167,151 @@ end
         @test isfile(joinpath(outdir, "smooth.vtu"))
     end
 end
+
+@testsnippet BezierEvaluation begin
+    const FG = FerriteGismo
+
+    # Rational Bézier representation of a cell evaluated at the local point `t` ∈ [0, 1]^rdim,
+    # the way Paraview interpolates geometry and point data
+    function evaluateBezier(degrees, coefs, weights, t)
+        B = [FG._bernstein(degrees, idx, t) for idx in FG._bernsteinIndices(degrees)]
+        return sum(weights .* B .* coefs) / sum(weights .* B)
+    end
+
+    toParameter(span, t) = [span.lower[d] + t[d] * (span.upper[d] - span.lower[d]) for d in eachindex(t)]
+
+    # Largest deviation of the Bézier geometry and of the Bézier field of `u` from the spline
+    function bezierErrors(grid, dh, u)
+        rdim = Ferrite.get_reference_dimension(grid)
+        basis = TinyGismo.basis(grid.geometry)
+        weights = FG._rationalWeights(basis)
+        fieldBasis = Ferrite.get_base_interpolation(FG._fieldInterpolation(dh, :u)).basis
+
+        degrees = max.(FG._degrees(basis, Val(rdim)), FG._degrees(fieldBasis, Val(rdim)))
+        ext = FG.BezierExtraction(degrees)
+        geometry = [FG._bezierGeometry(ext, grid, basis, weights, span) for span in grid.knotSpans]
+        field = FG._bezierField(ext, grid, last.(geometry), fieldBasis, a -> u[a])
+
+        nb = length(ext.points)
+        errX = errU = 0.0
+        for (e, span) in pairs(grid.knotSpans), t in ([0.0, 0.0], [0.3, 0.8], [0.77, 0.21], [1.0, 1.0])
+            t = t[1:rdim]
+            xb, wb = geometry[e]
+            ub = field[(nb * (e - 1) + 1):(nb * e)]
+            ξ = toParameter(span, t)
+            errX = max(errX, norm(evaluateBezier(degrees, xb, wb, t) - FG.toPhysical(grid, ξ)))
+            errU = max(errU, abs(evaluateBezier(degrees, ub, wb, t) - interpolate(fieldBasis, u, ξ)))
+        end
+        return errX, errU
+    end
+
+    function scalarHandler(grid, ip)
+        dh = IGADofHandler(grid)
+        add!(dh, :u, ip)
+        close!(dh)
+        return dh
+    end
+end
+
+@testitem "Bézier export reproduces geometry and fields exactly" setup = [BezierEvaluation] begin
+    using LinearAlgebra
+
+    square() = (g = createBSplineSquare(1.0); degreeElevate!(g); uniformRefine!(g, 2); g)
+
+    @testset "B-spline patch" begin
+        g = square()
+        grid = IGAGrid{2}(g)
+        dh = scalarHandler(grid, IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(g)))
+        @test all(bezierErrors(grid, dh, sin.(1:ndofs(dh))) .< 1.0e-12)
+    end
+
+    @testset "NURBS patch with different degrees per direction" begin
+        g = createNurbsQuarterAnnulus(1.0, 2.0)
+        degreeElevate!(g)
+        uniformRefine!(g, 2)
+        grid = IGAGrid{2}(g)
+        @test FG._degrees(TinyGismo.basis(g), Val(2)) == (2, 3)
+        dh = scalarHandler(grid, IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(g)))
+        @test all(bezierErrors(grid, dh, sin.(1:ndofs(dh))) .< 1.0e-12)
+    end
+
+    @testset "field of higher degree than the geometry" begin
+        g = createBSplineSquare(1.0)
+        uniformRefine!(g, 2)
+        f = createBSplineSquare(1.0)
+        degreeElevate!(f, 2)
+        uniformRefine!(f, 2)
+        grid = IGAGrid{2}(g)
+        dh = scalarHandler(grid, IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(f)))
+        @test all(bezierErrors(grid, dh, sin.(1:ndofs(dh))) .< 1.0e-12)
+    end
+
+    @testset "hierarchical patch" begin
+        thb = THBSpline{2}(square())
+        refineElements!(thb, RefinementBox(2, 1:2, 1:2))
+        grid = IGAGrid{2}(thb)
+        dh = IGADofHandler(grid)
+        for (cells, ip) in hierarchicalSubdomains(grid)
+            add!(SubDofHandler(dh, cells), :u, ip)
+        end
+        close!(dh)
+        @test all(bezierErrors(grid, dh, sin.(1:ndofs(dh))) .< 1.0e-12)
+    end
+
+    @testset "NURBS curve" begin
+        c = createNurbsCircle(1.0)
+        grid = IGAGrid{2, 1}(c)
+        dh = scalarHandler(grid, IGAInterpolation{RefLine}(TinyGismo.basis(c)))
+        @test all(bezierErrors(grid, dh, sin.(1:ndofs(dh))) .< 1.0e-12)
+    end
+end
+
+@testitem "Bézier node ordering follows VTK" begin
+    using FerriteGismo: _vtkOrdering
+    # vertices, then the interior nodes, of a curve
+    @test _vtkOrdering((3,)) == [1, 4, 2, 3]
+    # vertices counterclockwise, edges in the direction of increasing parameter, then the interior
+    @test _vtkOrdering((2, 2)) == [1, 3, 9, 7, 2, 6, 8, 4, 5]
+    @test _vtkOrdering((3, 1)) == [1, 4, 8, 5, 2, 3, 6, 7]
+end
+
+@testitem "VTKBezierFile" setup = [BezierEvaluation] begin
+    g = createNurbsQuarterAnnulus(1.0, 2.0)
+    degreeElevate!(g)
+    uniformRefine!(g, 2)
+    grid = IGAGrid{2}(g)
+    ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(g))
+    dh = IGADofHandler(grid)
+    add!(dh, :u, ip^2)
+    close!(dh)
+    u = rand(ndofs(dh))
+
+    proj = L2Projector(ip, grid)
+    qr = QuadratureRule{RefQuadrilateral}(3)
+    projected = project(proj, [ones(getnquadpoints(qr)) for _ in 1:getncells(grid)], qr)
+
+    mktempdir() do outdir
+        pvd = FG.WriteVTK.paraview_collection(joinpath(outdir, "series"))
+        VTKBezierFile(joinpath(outdir, "annulus"), dh) do vtk
+            write_solution(vtk, dh, u)
+            write_projection(vtk, proj, projected, "projected")
+            write_cell_data(vtk, collect(1.0:getncells(grid)), "cellid")
+            pvd[0.0] = vtk
+        end
+        FG.WriteVTK.vtk_save(pvd)
+
+        vtu = read(joinpath(outdir, "annulus.vtu"), String)
+        @test isfile(joinpath(outdir, "series.pvd"))
+        @test occursin("RationalWeights=\"RationalWeights\"", vtu)
+        @test occursin("HigherOrderDegrees=\"HigherOrderDegrees\"", vtu)
+        @test all(name -> occursin("Name=\"$name\"", vtu), ("u", "projected", "cellid"))
+
+        # A B-spline field on a NURBS geometry has another weight function than the cells
+        b = createBSplineSquare(1.0)
+        degreeElevate!(b)
+        uniformRefine!(b, 2)
+        VTKBezierFile(joinpath(outdir, "invalid"), dh) do vtk
+            @test_throws ArgumentError FG._bezierField(vtk, TinyGismo.basis(b), a -> 1.0)
+        end
+    end
+end

@@ -78,6 +78,25 @@ getncells(exportGrid(grid; subdivision = 4))
 The nodes added by subdividing lie on the *exact* geometry, not on a polygonal
 approximation of it, so a NURBS arc gets rounder rather than just finer.
 
+## Exact export as Bézier cells
+
+[`VTKBezierFile`](@ref) writes every knot span as a rational Bézier cell instead. These
+represent the geometry and the spline fields exactly, without any `subdivision`; Paraview
+subdivides them only for display ("Nonlinear Subdivision Level" in the display properties):
+
+```julia
+VTKBezierFile("solution", dh) do vtk
+    write_solution(vtk, dh, u)
+    write_projection(vtk, projector, σ_nodes, "stress")
+end
+```
+
+All cells share one degree per direction, the highest of the geometry and the fields of `dh`,
+so a quadratic geometry with a cubic field is written as cubic cells. This works for B-spline,
+NURBS and hierarchical patches. Fields are interpolated with the rational weights of the
+geometry, so on a NURBS patch a field has to use the geometry basis (or a refinement or
+degree elevation of it).
+
 ## Projecting quadrature-point data
 
 Stresses and other quantities computed at quadrature points are discontinuous data that has
