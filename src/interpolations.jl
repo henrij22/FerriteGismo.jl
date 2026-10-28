@@ -27,7 +27,21 @@ cv = CellValues(qr, ip, ip)
 struct IGAInterpolation{shape, order, B} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
+    # Extent of the parameter domain. Ferrite evaluates the interpolation at the raw
+    # reference points when constructing `CellValues`, which lie outside of it; G+Smo reads
+    # out of bounds there (an access violation on Windows), so evaluation points are clamped.
+    lower::Vector{Float64}
+    upper::Vector{Float64}
 end
+
+function _parameterDomain(basis, dim::Int)
+    spans = _elementSpans(basis, Val(dim))
+    lower = [minimum(s -> s.lower[i], spans) for i in 1:dim]
+    upper = [maximum(s -> s.upper[i], spans) for i in 1:dim]
+    return lower, upper
+end
+
+_clampToDomain(ξ::Vec, ip::IGAInterpolation) = clamp.(Vector(ξ), ip.lower, ip.upper)
 
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
@@ -52,7 +66,7 @@ function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefS
         nbasefuns = length(_activeIn(basis, firstSpan))
     end
 
-    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns, _parameterDomain(basis, dim)...)
 end
 
 """
@@ -64,7 +78,8 @@ intended way to obtain these.
 """
 function IGAInterpolation{shape}(basis::BB, nbasefuns::Int) where {shape <: Ferrite.AbstractRefShape, BB}
     order = _basisOrder(basis, Ferrite.getrefdim(shape))
-    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
+    dim = Ferrite.getrefdim(shape)
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns, _parameterDomain(basis, dim)...)
 end
 
 # For a hierarchical basis this is the degree of the tensor levels: refinement adds levels,
@@ -97,7 +112,7 @@ function Ferrite.reference_shape_values!(
 
     valsRaw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
         n = _nActiveAt(valsRaw, ip)
         for i in 1:n
             values[i, qp] = valsRaw[i, 1]
@@ -118,8 +133,8 @@ function Ferrite.reference_shape_gradients_and_values!(
     valsRaw = gsMatrix()
     derivsRaw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
-        deriv!(ip.basis, Vector(ξ), derivsRaw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
+        deriv!(ip.basis, _clampToDomain(ξ, ip), derivsRaw)
 
         n = _nActiveAt(valsRaw, ip)
         @inbounds for i in 1:n
@@ -145,9 +160,9 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
     derivsRaw = gsMatrix()
     derivs2Raw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
-        deriv!(ip.basis, Vector(ξ), derivsRaw)
-        deriv2!(ip.basis, Vector(ξ), derivs2Raw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
+        deriv!(ip.basis, _clampToDomain(ξ, ip), derivsRaw)
+        deriv2!(ip.basis, _clampToDomain(ξ, ip), derivs2Raw)
 
         n = _nActiveAt(valsRaw, ip)
         @inbounds for i in 1:n

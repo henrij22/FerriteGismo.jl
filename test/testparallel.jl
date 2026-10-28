@@ -7,9 +7,9 @@
 
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
 
-    # No "current element" field to mutate or race on
+    # No "current element" field to mutate or race on (only the fixed parameter domain)
     @test !ismutabletype(typeof(ip))
-    @test fieldnames(typeof(ip)) == (:basis, :nbasefuns)
+    @test fieldnames(typeof(ip)) == (:basis, :nbasefuns, :lower, :upper)
 
     # Ferrite's generic fallback `Base.copy(::Interpolation) = ip` is correct as-is now
     @test copy(ip) === ip
