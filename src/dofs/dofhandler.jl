@@ -233,7 +233,7 @@ function _collect_cell_dofs_iga!(
 
         for ci in sdh.cellset
             # Read from the grid rather than re-derived from the basis.
-            activeInCell = _activeIn(basis, grid.knotSpans[ci], actives)
+            activeInCell = _activeIn(basis, getspan(grid, ci), actives)
 
             if ncomp == 1
                 append!(cellDofs[ci], activeInCell .+ offset)

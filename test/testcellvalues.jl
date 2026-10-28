@@ -31,3 +31,34 @@
     @test getnquadpoints(cv) == 1
     @test getdetJdV(cv, 1) ≈ 1.0
 end
+
+@testitem "Hessians on embedded elements (curve in 2D)" begin
+    # Unit circle. With the control points as dofs, u = x₁ is reproduced exactly, and its
+    # tangential Hessian is known analytically: ∇ₛu = e₁ - n₁ n and ∇ₛ(∇ₛu) = -(t₁ n + n₁ t) ⊗ t
+    # with unit tangent t and unit normal n = x on the circle.
+    geometry = createNurbsCircle(1.0)
+    degreeElevate!(geometry, 1)
+    uniformRefine!(geometry, 1)
+    grid = IGAGrid{2, 1}(geometry)
+    ip = IGAInterpolation{RefLine}(TinyGismo.basis(geometry))
+    cv = CellValues(QuadratureRule{RefLine}(4), ip, ip^2; update_hessians = true)
+
+    dh = IGADofHandler(grid)
+    add!(dh, :u, ip)
+    close!(dh)
+
+    u = [node.x[1] for node in grid.nodes]
+    cc = CellCache(dh)
+    for cell in 1:getncells(grid)
+        reinit!(cc, cell)
+        reinit!(cv, cc)
+        ue = u[celldofs(cc)]
+        for q in 1:getnquadpoints(cv)
+            n = spatial_coordinate(cv, q, getcoordinates(cc))
+            @test norm(n) ≈ 1.0
+            t = Vec{2}((-n[2], n[1]))
+            expected = -(t[1] * n + n[1] * t) ⊗ t
+            @test Ferrite.function_hessian(cv, q, ue) ≈ expected atol = 1.0e-10
+        end
+    end
+end

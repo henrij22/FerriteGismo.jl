@@ -33,10 +33,10 @@ C++ library. FerriteGismo re-exports both `Ferrite` and `TinyGismo`.
 ## Grid and cells
 
 An [`IGAGrid`](@ref) stores the G+Smo geometry, the control points as Ferrite `Node`s, one
-[`FerriteGismo.IGACell`](@ref) per non-empty knot span, and a cached
-[`FerriteGismo.KnotSpanWrapper`](@ref) for each knot span. Each cell holds the indices of
-the basis functions that are *active* on its knot span; these take the role of the cell
-"nodes" and are the basis for the connectivity used during assembly.
+[`FerriteGismo.IGACell`](@ref) per non-empty knot span. Each cell holds its
+[`FerriteGismo.KnotSpanWrapper`](@ref) and the indices of the basis functions that are
+*active* on that knot span; these take the role of the cell "nodes" and are the basis for
+the connectivity used during assembly.
 
 The reference dimension `rdim` (parametric dimension) and spatial dimension `sdim` are kept
 as separate type parameters so that embedded geometries (`rdim < sdim`) can be represented,
@@ -80,13 +80,18 @@ basis.
 
 ### Geometry mapping
 
-The mapping from the reference element to physical space is implemented through a dedicated
-`FerriteGismo.IGAMapping` type. FerriteGismo specializes `Ferrite.calculate_mapping` and
-`Ferrite.apply_mapping!` for this mapping type to compute the Jacobian (and, where
-available, the Hessian) and to push the reference gradients forward to physical space. The
-determinant of the Jacobian is additionally scaled by the ratio between the knot-span area
-and the reference-element area, so that integration is performed correctly over the
-parametric domain.
+The mapping from the reference element to physical space is Ferrite's own
+`IdentityMapping`: `IGAInterpolation` does not define a mapping of its own. Jacobian,
+Hessian (including embedded elements, `rdim < sdim`) and the push-forward of the reference
+gradients are all computed by Ferrite's generic `calculate_mapping` / `apply_mapping!`.
+
+What Ferrite cannot know is that the basis functions depend on the knot span. FerriteGismo
+therefore only specializes `Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})`
+(and the `FacetValues` variant): it remaps the reference quadrature points into the knot
+span with `FerriteGismo.ref_to_param`, re-evaluates the interpolation there, calls Ferrite's
+generic `reinit!`, and finally scales `detJdV` by the ratio between the knot-span area and
+the reference-element area, so that integration is performed correctly over the parametric
+domain.
 
 ### Facet values
 

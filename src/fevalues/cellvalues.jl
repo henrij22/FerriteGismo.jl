@@ -1,40 +1,26 @@
-function Ferrite.reinit!(
-        cv::CellValues{FV}, cell::CellCache
-    ) where {
-        FV <:
-        Ferrite.FunctionValues{Order, IP} where {
-            Order,
-            IP <: Union{IGAInterpolation, VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}},
-        },
-    }
-    # Remap the reference-cell quadrature points into the active knot span's parameter
-    # space, instead of storing "the active knot span" on the interpolation itself.
-    # ref_to_param returns a plain Vector; re-wrap it since precompute_values! needs Vec.
-    knotSpan = cell.grid.knotSpans[Ferrite.cellid(cell)]
-    dim = Ferrite.getrefdim(cv.fun_values.ip)
-    points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(cv.qr)]
+# The active basis functions depend on the knot span, so the reference-cell quadrature
+# points are remapped into the span's parameter space and the interpolation is re-evaluated
+# there. Everything after that (mapping, `detJdV`, hessians incl. embedded elements) is
+# Ferrite's generic `reinit!`.
+function _remap_points(points, span::KnotSpanWrapper{dim}) where {dim}
+    return [Vec{dim}(Tuple(ref_to_param(ξ, span))) for ξ in points]
+end
 
-    Ferrite.precompute_values!(cv.fun_values, points)
-    Ferrite.precompute_values!(cv.geo_mapping, points)
+function _precompute_values!(cv_or_fv, points)
+    foreach(fv -> Ferrite.precompute_values!(fv, points), Ferrite.get_fun_values(cv_or_fv))
+    Ferrite.precompute_values!(Ferrite.get_geo_mapping(cv_or_fv), points)
+    return nothing
+end
 
-    geo_mapping = cv.geo_mapping
-    fun_values = cv.fun_values
+function Ferrite.reinit!(cv::CellValues, cc::CellCache{<:Any, <:IGAGrid})
+    span = getspan(cc.grid, Ferrite.cellid(cc))
+    _precompute_values!(cv, _remap_points(Ferrite.getpoints(Ferrite.get_quadrature_rule(cv)), span))
 
-    # Ferrite.check_reinit_sdim_consistency(:IGACellValues, Ferrite.shape_gradient_type(cv), eltype(x))
-    if cell === nothing && reinit_needs_cell(cv)
-        throw(ArgumentError("The cell::AbstractCell input is required to reinit! non-identity function mappings"))
-    end
+    Ferrite.reinit!(cv, nothing, cc.coords)
 
-    current_coefs = getfield.(cell.grid.nodes[cell.nodes], :x)
-
-    # Volume Mapping from parent to knot span
-    rV = areaOfKnotSpan(knotSpan) / (2^dim)
-
-    @inbounds for (q_point, w) in enumerate(Ferrite.getweights(cv.qr))
-        mapping = Ferrite.calculate_mapping(geo_mapping, q_point, current_coefs)
-        Ferrite._update_detJdV!(cv.detJdV, q_point, w, mapping)
-        @inbounds cv.detJdV[q_point] *= rV
-        Ferrite.apply_mapping!(fun_values, q_point, mapping, cell)
-    end
+    # Volume mapping from the reference cell to the knot span
+    rV = areaOfKnotSpan(span) / 2^length(span.lower)
+    detJdV = Ferrite.getdetJdVs(cv)
+    detJdV === nothing || (detJdV .*= rV)
     return nothing
 end

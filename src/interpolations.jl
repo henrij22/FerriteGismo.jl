@@ -29,9 +29,6 @@ struct IGAInterpolation{shape, order, B} <: ScalarInterpolation{shape, order}
     nbasefuns::Int
 end
 
-struct IGAMapping end
-Ferrite.mapping_type(::IGAInterpolation) = IGAMapping()
-
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
 
@@ -76,6 +73,10 @@ _basisOrder(basis, dim::Int) =
     dim == 1 ? Int(TinyGismo.degree(basis)) : Int(maximum(ntuple(i -> TinyGismo.degree(basis, i), dim)))
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
+
+# Immutable and stateless (the basis is only read), so it can be shared between tasks.
+Ferrite.task_local_copy(ip::IGAInterpolation) = ip
+Ferrite.task_local_copy(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip
 
 #=
 `qr_points` are already remapped into parameter space by `reinit!`, not the canonical
@@ -176,9 +177,6 @@ Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
 # needs a scalar `reference_shape_value(::IGAInterpolation, ξ, i)` which spline bases lack
 # (all active functions are evaluated at once). We instead evaluate the scalar basis once and
 # expand it to the vectorized layout (node-major, component-minor: u1x, u1y, u2x, u2y, ...).
-
-# The vectorized interpolation must use the IGA mapping, not the identity mapping.
-Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
 
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ipv::VectorizedInterpolation{vdim, shape, order, IP},
