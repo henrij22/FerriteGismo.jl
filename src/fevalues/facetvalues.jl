@@ -26,10 +26,11 @@ function Ferrite.getfacetset(grid::IGAGrid{sdim, 2}, name::String) where {sdim}
     name in ("left", "right", "bottom", "top") || throw(
         ArgumentError("Unknown facet set \"$name\"; expected \"left\", \"right\", \"bottom\" or \"top\"")
     )
-    lo = grid.knotSpans[1].lower
-    hi = grid.knotSpans[end].upper
+    lo = getspan(grid, 1).lower
+    hi = getspan(grid, getncells(grid)).upper
     set = Ferrite.OrderedSet{FacetIndex}()
-    for (i, kv) in enumerate(grid.knotSpans)
+    for (i, cell) in pairs(grid.cells)
+        kv = cell.span
         # Ferrite facet numbering of `RefQuadrilateral`: 1=bottom, 2=right, 3=top, 4=left
         if name == "bottom" && kv.lower[2] == lo[2]
             push!(set, FacetIndex(i, 1))
@@ -77,42 +78,18 @@ end
 # In 1D the facets are points, so no weight scaling is needed.
 facetScaleOfKnotSpan(::KnotSpanWrapper{1}, ::Int) = 1.0
 
-function Ferrite.reinit!(
-        fv::FacetValues{FV}, cc::CellCache, facet_nr::Int
-    ) where {
-        FV <:
-        Ferrite.FunctionValues{Order, IP} where {
-            Order,
-            IP <: Union{IGAInterpolation, VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}},
-        },
-    }
+function Ferrite.reinit!(fv::FacetValues, cc::CellCache{<:Any, <:IGAGrid}, facet_nr::Integer)
+    span = getspan(cc.grid, Ferrite.cellid(cc))
     Ferrite.set_current_facet!(fv, facet_nr)
-    fun_values = Ferrite.get_fun_values(fv)
-    geo_mapping = Ferrite.get_geo_mapping(fv)
+    points = _remap_points(Ferrite.getpoints(getfield(fv, :fqr), facet_nr), span)
+    _precompute_values!(fv, points)
 
-    knotSpan = cc.grid.knotSpans[Ferrite.cellid(cc)]
-    dim = Ferrite.getrefdim(fun_values.ip)
+    Ferrite.reinit!(fv, nothing, cc.coords, facet_nr)
 
-    # Remap the facet quadrature points into the active knot span, as in the cell reinit!
-    points = [Vec{dim}(Tuple(ref_to_param(ξ, knotSpan))) for ξ in Ferrite.getpoints(fv.fqr, facet_nr)]
-    Ferrite.precompute_values!(fun_values, points)
-    Ferrite.precompute_values!(geo_mapping, points)
-
-    current_coefs = getfield.(cc.grid.nodes[cc.nodes], :x)
-
-    rF = facetScaleOfKnotSpan(knotSpan, facet_nr)
-
-    @inbounds for (q_point, w) in pairs(Ferrite.getweights(fv.fqr, facet_nr))
-        mapping = Ferrite.calculate_mapping(geo_mapping, q_point, current_coefs)
-        J = Ferrite.getjacobian(mapping)
-        # `J` is the Jacobian w.r.t. the parametric (knot) coordinates; the affine map from
-        # the reference facet to the parametric facet is accounted for by `rF`.
-        weight_norm = Ferrite.weighted_normal(J, Ferrite.getrefshape(geo_mapping.ip), facet_nr)
-        detJ = norm(weight_norm)
-        detJ > 0.0 || Ferrite.throw_detJ_not_pos(detJ)
-        fv.detJdV[q_point] = detJ * w * rF
-        fv.normals[q_point] = weight_norm / detJ
-        Ferrite.apply_mapping!(fun_values, q_point, mapping, cc)
+    rF = facetScaleOfKnotSpan(span, facet_nr)
+    detJdV = getfield(fv, :detJdV)
+    @inbounds for q_point in eachindex(Ferrite.getweights(getfield(fv, :fqr), facet_nr))
+        detJdV[q_point] *= rF
     end
     return nothing
 end

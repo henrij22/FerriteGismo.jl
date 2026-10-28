@@ -27,10 +27,20 @@ cv = CellValues(qr, ip, ip)
 struct IGAInterpolation{shape, order, B} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
+    # Evaluation points are clamped to this: `CellValues` evaluates at the raw reference
+    # points, outside the domain, where G+Smo reads out of bounds.
+    lower::Vector{Float64}
+    upper::Vector{Float64}
 end
 
-struct IGAMapping end
-Ferrite.mapping_type(::IGAInterpolation) = IGAMapping()
+function _parameterDomain(basis, dim::Int)
+    spans = _elementSpans(basis, Val(dim))
+    lower = [minimum(s -> s.lower[i], spans) for i in 1:dim]
+    upper = [maximum(s -> s.upper[i], spans) for i in 1:dim]
+    return lower, upper
+end
+
+_clampToDomain(ξ::Vec, ip::IGAInterpolation) = clamp.(Vector(ξ), ip.lower, ip.upper)
 
 function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefShape, BB}
     dim = Ferrite.getrefdim(shape)
@@ -55,7 +65,7 @@ function IGAInterpolation{shape}(basis::BB) where {shape <: Ferrite.AbstractRefS
         nbasefuns = length(_activeIn(basis, firstSpan))
     end
 
-    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns, _parameterDomain(basis, dim)...)
 end
 
 """
@@ -67,7 +77,8 @@ intended way to obtain these.
 """
 function IGAInterpolation{shape}(basis::BB, nbasefuns::Int) where {shape <: Ferrite.AbstractRefShape, BB}
     order = _basisOrder(basis, Ferrite.getrefdim(shape))
-    return IGAInterpolation{shape, order, BB}(basis, nbasefuns)
+    dim = Ferrite.getrefdim(shape)
+    return IGAInterpolation{shape, order, BB}(basis, nbasefuns, _parameterDomain(basis, dim)...)
 end
 
 # For a hierarchical basis this is the degree of the tensor levels: refinement adds levels,
@@ -76,6 +87,9 @@ _basisOrder(basis, dim::Int) =
     dim == 1 ? Int(TinyGismo.degree(basis)) : Int(maximum(ntuple(i -> TinyGismo.degree(basis, i), dim)))
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
+
+Ferrite.task_local_copy(ip::IGAInterpolation) = ip
+Ferrite.task_local_copy(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip
 
 #=
 `qr_points` are already remapped into parameter space by `reinit!`, not the canonical
@@ -96,7 +110,7 @@ function Ferrite.reference_shape_values!(
 
     valsRaw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
         n = _nActiveAt(valsRaw, ip)
         for i in 1:n
             values[i, qp] = valsRaw[i, 1]
@@ -117,8 +131,8 @@ function Ferrite.reference_shape_gradients_and_values!(
     valsRaw = gsMatrix()
     derivsRaw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
-        deriv!(ip.basis, Vector(ξ), derivsRaw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
+        deriv!(ip.basis, _clampToDomain(ξ, ip), derivsRaw)
 
         n = _nActiveAt(valsRaw, ip)
         @inbounds for i in 1:n
@@ -144,9 +158,9 @@ function Ferrite.reference_shape_hessians_gradients_and_values!(
     derivsRaw = gsMatrix()
     derivs2Raw = gsMatrix()
     for (qp, ξ) in pairs(qr_points)
-        eval!(ip.basis, Vector(ξ), valsRaw)
-        deriv!(ip.basis, Vector(ξ), derivsRaw)
-        deriv2!(ip.basis, Vector(ξ), derivs2Raw)
+        eval!(ip.basis, _clampToDomain(ξ, ip), valsRaw)
+        deriv!(ip.basis, _clampToDomain(ξ, ip), derivsRaw)
+        deriv2!(ip.basis, _clampToDomain(ξ, ip), derivs2Raw)
 
         n = _nActiveAt(valsRaw, ip)
         @inbounds for i in 1:n
@@ -176,9 +190,6 @@ Ferrite.conformity(::IGAInterpolation) = Ferrite.H1Conformity()
 # needs a scalar `reference_shape_value(::IGAInterpolation, ξ, i)` which spline bases lack
 # (all active functions are evaluated at once). We instead evaluate the scalar basis once and
 # expand it to the vectorized layout (node-major, component-minor: u1x, u1y, u2x, u2y, ...).
-
-# The vectorized interpolation must use the IGA mapping, not the identity mapping.
-Ferrite.mapping_type(::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = IGAMapping()
 
 function Ferrite.reference_shape_values!(
         values::AbstractMatrix, ipv::VectorizedInterpolation{vdim, shape, order, IP},

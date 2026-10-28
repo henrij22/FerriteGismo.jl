@@ -26,8 +26,8 @@ function breakpoints(grid::IGAGrid{sdim, rdim}, dir::Integer; subdivision::Int =
     @argcheck subdivision >= 1 "subdivision must be at least 1"
     @argcheck !isHierarchical(grid) "a hierarchical grid has no per-direction breakpoints: its elements do not form a tensor-product lattice. Use `exportPoints`/`exportGrid`, which build the mesh element by element."
 
-    knots = sort!(unique!([ks.lower[dir] for ks in grid.knotSpans]))
-    push!(knots, maximum(ks.upper[dir] for ks in grid.knotSpans))
+    knots = sort!(unique!([c.span.lower[dir] for c in grid.cells]))
+    push!(knots, maximum(c.span.upper[dir] for c in grid.cells))
 
     subdivision == 1 && return knots
 
@@ -63,14 +63,14 @@ for pointwise field values, and is what lets each element be drawn exactly.
 function _elementwiseExportPoints(grid::IGAGrid{sdim, 1}, subdivision::Int) where {sdim}
     return [
         Vec{1}((ξ,))
-            for ks in grid.knotSpans
+            for ks in (c.span for c in grid.cells)
             for ξ in range(ks.lower[1], ks.upper[1]; length = subdivision + 1)
     ]
 end
 
 function _elementwiseExportPoints(grid::IGAGrid{sdim, 2}, subdivision::Int) where {sdim}
     points = Vec{2, Float64}[]
-    for ks in grid.knotSpans
+    for ks in (c.span for c in grid.cells)
         ξs = range(ks.lower[1], ks.upper[1]; length = subdivision + 1)
         ηs = range(ks.lower[2], ks.upper[2]; length = subdivision + 1)
         for η in ηs, ξ in ξs
@@ -84,14 +84,14 @@ function _elementwiseExportCells(grid::IGAGrid{sdim, 1}, subdivision::Int) where
     n = subdivision + 1
     return [
         Line(((e - 1) * n + i, (e - 1) * n + i + 1))
-            for e in eachindex(grid.knotSpans) for i in 1:subdivision
+            for e in eachindex(grid.cells) for i in 1:subdivision
     ]
 end
 
 function _elementwiseExportCells(grid::IGAGrid{sdim, 2}, subdivision::Int) where {sdim}
     n = subdivision + 1
     cells = Quadrilateral[]
-    for e in eachindex(grid.knotSpans)
+    for e in eachindex(grid.cells)
         offset = (e - 1) * n^2
         nodeid(i, j) = offset + (j - 1) * n + i
         for j in 1:subdivision, i in 1:subdivision

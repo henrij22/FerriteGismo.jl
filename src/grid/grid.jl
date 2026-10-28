@@ -5,10 +5,12 @@
 Internal cell type of an [`IGAGrid`](@ref), representing one knot span (Bézier element) of
 reference dimension `rdim`. Its `nodes` field stores the global indices of the spline basis
 functions that are active on the knot span; these play the role of the cell's "nodes" in
-the Ferrite sense and are what `celldofs` are derived from.
+the Ferrite sense and are what `celldofs` are derived from. `span` is the knot span
+itself, used by `reinit!` to remap quadrature points into parameter space.
 """
 struct IGACell{rdim} <: Ferrite.AbstractCell{Ferrite.RefHypercube{rdim}}
     nodes::Vector{Int}
+    span::KnotSpanWrapper{rdim}
 end
 
 """
@@ -44,8 +46,9 @@ struct IGAGrid{sdim, rdim, G <: gsGeometry} <: Ferrite.AbstractGrid{sdim}
     cells::Vector{IGACell{rdim}}
     nodes::Vector{Ferrite.Node}
     geometry::G
-    knotSpans::Vector{KnotSpanWrapper{rdim}}
 end
+
+getspan(grid::IGAGrid, i::Integer) = grid.cells[i].span
 
 get_sdim(::IGAGrid{sdim}) where {sdim} = sdim::Int
 get_rdim(::IGAGrid{sdim, rdim}) where {sdim, rdim} = rdim::Int
@@ -56,17 +59,17 @@ function IGAGrid{sdim, rdim}(geometry::G) where {G <: gsGeometry, sdim, rdim}
     VecT = typeof(zero(Vec{sdim}))
     cc = Ferrite.Node.(extractCoefs(toMatrix(TinyGismo.coefs(geometry)), VecT))
 
-    nodes = IGACell[] # initialize with undef
+    cells = IGACell{rdim}[]
     basis = TinyGismo.basis(geometry)
 
     kvs = _elementSpans(basis, Val(rdim))
 
     actives = gsMatrix{Int32}()
     for kv in kvs
-        push!(nodes, IGACell{rdim}(_activeIn(basis, kv, actives)))
+        push!(cells, IGACell{rdim}(_activeIn(basis, kv, actives), kv))
     end
 
-    return IGAGrid{sdim, rdim, G}(nodes, cc, geometry, kvs)
+    return IGAGrid{sdim, rdim, G}(cells, cc, geometry)
 end
 
 # See also spatial_coordinate(cellvalues, qp, cell_coordinates)
