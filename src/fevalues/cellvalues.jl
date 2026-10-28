@@ -1,7 +1,5 @@
-# The active basis functions depend on the knot span, so the reference-cell quadrature
-# points are remapped into the span's parameter space and the interpolation is re-evaluated
-# there. Everything after that (mapping, `detJdV`, hessians incl. embedded elements) is
-# Ferrite's generic `reinit!`.
+# The basis depends on the knot span, so the quadrature points are remapped and the
+# interpolation re-evaluated before Ferrite's generic `reinit!`.
 function _remap_points(points, span::KnotSpanWrapper{dim}) where {dim}
     return [Vec{dim}(Tuple(ref_to_param(ξ, span))) for ξ in points]
 end
@@ -18,7 +16,6 @@ function Ferrite.reinit!(cv::CellValues, cc::CellCache{<:Any, <:IGAGrid})
 
     Ferrite.reinit!(cv, nothing, cc.coords)
 
-    # Volume mapping from the reference cell to the knot span
     rV = areaOfKnotSpan(span) / 2^length(span.lower)
     detJdV = Ferrite.getdetJdVs(cv)
     detJdV === nothing || (detJdV .*= rV)

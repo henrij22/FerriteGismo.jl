@@ -33,9 +33,7 @@
 end
 
 @testitem "Hessians on embedded elements (curve in 2D)" begin
-    # Unit circle. With the control points as dofs, u = x₁ is reproduced exactly, and its
-    # tangential Hessian is known analytically: ∇ₛu = e₁ - n₁ n and ∇ₛ(∇ₛu) = -(t₁ n + n₁ t) ⊗ t
-    # with unit tangent t and unit normal n = x on the circle.
+    # u = x₁ on the unit circle: ∇ₛ∇ₛu = -(t₁ n + n₁ t) ⊗ t
     geometry = createNurbsCircle(1.0)
     degreeElevate!(geometry, 1)
     uniformRefine!(geometry, 1)

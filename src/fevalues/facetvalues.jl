@@ -78,9 +78,6 @@ end
 # In 1D the facets are points, so no weight scaling is needed.
 facetScaleOfKnotSpan(::KnotSpanWrapper{1}, ::Int) = 1.0
 
-# Remaps the facet quadrature points into the active knot span, evaluates the interpolation
-# there and then lets Ferrite do the mapping. Ferrite's `detJdV` is that of the facet in
-# parameter space of the reference cell, `rF` accounts for the affine map to the knot span.
 function Ferrite.reinit!(fv::FacetValues, cc::CellCache{<:Any, <:IGAGrid}, facet_nr::Integer)
     span = getspan(cc.grid, Ferrite.cellid(cc))
     Ferrite.set_current_facet!(fv, facet_nr)

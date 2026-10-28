@@ -85,13 +85,11 @@ The mapping from the reference element to physical space is Ferrite's own
 Hessian (including embedded elements, `rdim < sdim`) and the push-forward of the reference
 gradients are all computed by Ferrite's generic `calculate_mapping` / `apply_mapping!`.
 
-What Ferrite cannot know is that the basis functions depend on the knot span. FerriteGismo
-therefore only specializes `Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})`
-(and the `FacetValues` variant): it remaps the reference quadrature points into the knot
-span with `FerriteGismo.ref_to_param`, re-evaluates the interpolation there, calls Ferrite's
-generic `reinit!`, and finally scales `detJdV` by the ratio between the knot-span area and
-the reference-element area, so that integration is performed correctly over the parametric
-domain.
+Since the basis depends on the knot span, FerriteGismo specializes
+`Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})` (and the `FacetValues`
+variant): it remaps the quadrature points into the knot span with
+`FerriteGismo.ref_to_param`, re-evaluates the interpolation, calls Ferrite's generic
+`reinit!` and scales `detJdV` by the knot-span area.
 
 ### Facet values
 

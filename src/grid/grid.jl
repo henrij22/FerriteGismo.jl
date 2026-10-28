@@ -48,7 +48,6 @@ struct IGAGrid{sdim, rdim, G <: gsGeometry} <: Ferrite.AbstractGrid{sdim}
     geometry::G
 end
 
-# The knot span of cell `i`, in parameter space.
 getspan(grid::IGAGrid, i::Integer) = grid.cells[i].span
 
 get_sdim(::IGAGrid{sdim}) where {sdim} = sdim::Int

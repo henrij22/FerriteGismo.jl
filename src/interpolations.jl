@@ -27,9 +27,8 @@ cv = CellValues(qr, ip, ip)
 struct IGAInterpolation{shape, order, B} <: ScalarInterpolation{shape, order}
     basis::B
     nbasefuns::Int
-    # Extent of the parameter domain. Ferrite evaluates the interpolation at the raw
-    # reference points when constructing `CellValues`, which lie outside of it; G+Smo reads
-    # out of bounds there (an access violation on Windows), so evaluation points are clamped.
+    # Evaluation points are clamped to this: `CellValues` evaluates at the raw reference
+    # points, outside the domain, where G+Smo reads out of bounds.
     lower::Vector{Float64}
     upper::Vector{Float64}
 end
@@ -89,7 +88,6 @@ _basisOrder(basis, dim::Int) =
 
 Ferrite.getnbasefunctions(ip::IGAInterpolation) = ip.nbasefuns
 
-# Immutable and stateless (the basis is only read), so it can be shared between tasks.
 Ferrite.task_local_copy(ip::IGAInterpolation) = ip
 Ferrite.task_local_copy(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip
 

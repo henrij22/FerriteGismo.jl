@@ -7,7 +7,7 @@
 
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
 
-    # No "current element" field to mutate or race on (only the fixed parameter domain)
+    # No "current element" field to mutate or race on
     @test !ismutabletype(typeof(ip))
     @test fieldnames(typeof(ip)) == (:basis, :nbasefuns, :lower, :upper)
 
