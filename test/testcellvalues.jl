@@ -52,13 +52,13 @@ end
     for cell in 1:getncells(grid)
         reinit!(cc, cell)
         reinit!(cv, cc)
-        ue = u[celldofs(cc)]
+        u_cell = u[celldofs(cc)]
         for q in 1:getnquadpoints(cv)
             n = spatial_coordinate(cv, q, getcoordinates(cc))
             @test norm(n) ≈ 1.0
             t = Vec{2}((-n[2], n[1]))
             expected = -(t[1] * n + n[1] * t) ⊗ t
-            @test Ferrite.function_hessian(cv, q, ue) ≈ expected atol = 1.0e-10
+            @test Ferrite.function_hessian(cv, q, u_cell) ≈ expected atol = 1.0e-10
         end
     end
 end
