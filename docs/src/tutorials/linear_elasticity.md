@@ -156,10 +156,11 @@ uy = u[2:2:end]  # vertical displacement components
 minimum(uy)
 ```
 
-Finally the displacement field is exported to VTK for visualization.
+Finally the displacement field is exported to VTK for visualization, as exact Bézier cells
+with [`VTKBezierFile`](@ref).
 
 ```@example elasticity
-VTKGridFile("linear_elasticity", dh) do vtk
+VTKBezierFile("linear_elasticity", dh) do vtk
     write_solution(vtk, dh, u)
 end
 nothing # hide
