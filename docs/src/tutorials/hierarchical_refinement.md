@@ -187,11 +187,12 @@ scheme drives that choice from a per-element error indicator rather than a fixed
 
 ### Postprocessing
 
-Export is unchanged. The export mesh is built element by element here, so the file contains
-the graded mesh rather than a uniform lattice over it.
+Export is unchanged. [`VTKBezierFile`](@ref) writes one Bézier cell per element, so the file
+contains the graded mesh rather than a uniform lattice over it, and the truncated hierarchical
+basis is represented exactly.
 
 ```@example hierheat
-VTKGridFile("hierarchical_heat_equation", dh) do vtk
+VTKBezierFile("hierarchical_heat_equation", dh) do vtk
     write_solution(vtk, dh, u)
 end
 nothing # hide
