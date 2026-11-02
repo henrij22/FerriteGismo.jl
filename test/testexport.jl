@@ -189,12 +189,12 @@ end
 
         degrees = max.(FG._degrees(basis, Val(rdim)), FG._degrees(fieldBasis, Val(rdim)))
         ext = FG.BezierExtraction(degrees)
-        geometry = [FG._bezierGeometry(ext, grid, basis, weights, span) for span in grid.knotSpans]
+        geometry = [FG._bezierGeometry(ext, grid, basis, weights, span) for span in (c.span for c in grid.cells)]
         field = FG._bezierField(ext, grid, last.(geometry), fieldBasis, a -> u[a])
 
         nb = length(ext.points)
         errX = errU = 0.0
-        for (e, span) in pairs(grid.knotSpans), t in ([0.0, 0.0], [0.3, 0.8], [0.77, 0.21], [1.0, 1.0])
+        for (e, span) in ((e, c.span) for (e, c) in pairs(grid.cells)), t in ([0.0, 0.0], [0.3, 0.8], [0.77, 0.21], [1.0, 1.0])
             t = t[1:rdim]
             xb, wb = geometry[e]
             ub = field[(nb * (e - 1) + 1):(nb * e)]

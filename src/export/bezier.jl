@@ -157,7 +157,7 @@ function _bezierFile(filename::String, grid::IGAGrid{sdim, rdim}, degrees::NTupl
     cellWeights = Vector{Vector{Float64}}(undef, getncells(grid))
     cells = WriteVTK.MeshCell[]
 
-    for (e, span) in pairs(grid.knotSpans)
+    for (e, span) in ((e, c.span) for (e, c) in pairs(grid.cells))
         xb, wb = _bezierGeometry(ext, grid, basis, weights, span)
         offset = nb * (e - 1)
         for k in 1:nb
@@ -191,7 +191,7 @@ function _bezierField(ext::BezierExtraction{rdim}, grid::IGAGrid, cellWeights, b
     weights = _rationalWeights(basis)
 
     data = typeof(coef(1))[]
-    for (e, span) in pairs(grid.knotSpans)
+    for (e, span) in ((e, c.span) for (e, c) in pairs(grid.cells))
         actives, C = _extractionOperator(ext, basis, weights, span)
         w = isnothing(weights) ? ones(length(actives)) : weights[actives]
         all(isapprox.(C' * w, cellWeights[e]; rtol = 1.0e-8)) || throw(
@@ -206,18 +206,18 @@ function _bezierField(ext::BezierExtraction{rdim}, grid::IGAGrid, cellWeights, b
 end
 
 """
-    write_solution(vtk::VTKBezierFile, dh::IGADofHandler, u::AbstractVector, suffix = "")
+    write_solution(vtk::VTKBezierFile, dh::IGADofHandler, u::AbstractVector; prefix = "", suffix = "")
 
 Write every field of the solution vector `u` to `vtk`, as exact Bézier coefficients.
 """
-function Ferrite.write_solution(vtk::VTKBezierFile, dh::IGADofHandler, u::AbstractVector, suffix = "")
+function Ferrite.write_solution(vtk::VTKBezierFile, dh::IGADofHandler, u::AbstractVector; prefix = "", suffix = "")
     for name in Ferrite.getfieldnames(dh)
         ip = _fieldInterpolation(dh, name)
         offset = fieldOffset(dh, name)
         n = Ferrite.n_components(ip)
         coef(a) = n == 1 ? u[offset + a] : Vec{n}(c -> u[offset + n * (a - 1) + c])
         data = _bezierField(vtk, Ferrite.get_base_interpolation(ip).basis, coef)
-        Ferrite._vtk_write_node_data(vtk.vtk, data, string(name, suffix))
+        Ferrite._vtk_write_node_data(vtk.vtk, data, string(prefix, name, suffix))
     end
     return vtk
 end
