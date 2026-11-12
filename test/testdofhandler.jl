@@ -178,3 +178,37 @@ end
     @test size(ipCoarse.basis) != size(ipFine.basis)
     @test_throws "different interpolations" close!(dh)
 end
+
+@testitem "allocate_matrix includes the couplings of affine constraints" begin
+    geometry = createBSplineSquare(1.0)
+    degreeElevate!(geometry, 1)
+    uniformRefine!(geometry, 2)
+    grid = IGAGrid{2}(geometry)
+    ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
+
+    dh = IGADofHandler(grid)
+    add!(dh, :u, ip)
+    close!(dh)
+
+    # a slave dof far from its master: the elements couple the slave to its neighbour only
+    slave, master, neighbour = 1, ndofs(dh), 2
+    incolumn(K, row, col) = row in K.rowval[K.colptr[col]:(K.colptr[col + 1] - 1)]
+
+    ch = ConstraintHandler(dh)
+    add!(ch, AffineConstraint(slave, [master => 1.0], 0.0))
+    close!(ch)
+
+    K0 = allocate_matrix(dh)
+    @test incolumn(K0, slave, neighbour)
+    @test !incolumn(K0, master, neighbour)
+
+    K = allocate_matrix(dh, ch)
+    @test incolumn(K, slave, neighbour)
+    @test incolumn(K, master, neighbour)
+
+    # condensing writes into the pattern
+    K.nzval .= 1.0
+    f = zeros(ndofs(dh))
+    apply!(K, f, ch)
+    @test size(K) == (ndofs(dh), ndofs(dh))
+end
