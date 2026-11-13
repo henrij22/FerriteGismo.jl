@@ -42,30 +42,31 @@ end
 const VTKFile = Union{VTKGridFile, Ferrite.VTKHDFGridFile}
 
 """
-    write_solution(vtk, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1)
+    write_solution(vtk, dh::IGADofHandler, u::AbstractVector; prefix = "", suffix = "", subdivision::Int = 1)
 
 Write every field of the solution vector `u` to `vtk`, evaluated at the nodes of the export
-mesh. Pass the same `subdivision` that the file was opened with.
+mesh. Pass the same `subdivision` that the file was opened with. `prefix` and `suffix` are
+added to the field names.
 """
 # One method per file type rather than one for their union: Ferrite's own method is
 # `(::VTKGridFile, ::AbstractDofHandler, ...)`, and a union in the first argument would tie
 # with it instead of winning on the more specific dof handler.
 function Ferrite.write_solution(
-        vtk::VTKGridFile, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1
+        vtk::VTKGridFile, dh::IGADofHandler, u::AbstractVector; prefix = "", suffix = "", subdivision::Int = 1
     )
-    return _writeSolution!(vtk, dh, u, suffix, subdivision)
+    return _writeSolution!(vtk, dh, u, prefix, suffix, subdivision)
 end
 
 function Ferrite.write_solution(
-        vtk::Ferrite.VTKHDFGridFile, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1
+        vtk::Ferrite.VTKHDFGridFile, dh::IGADofHandler, u::AbstractVector; prefix = "", suffix = "", subdivision::Int = 1
     )
-    return _writeSolution!(vtk, dh, u, suffix, subdivision)
+    return _writeSolution!(vtk, dh, u, prefix, suffix, subdivision)
 end
 
-function _writeSolution!(vtk, dh::IGADofHandler, u::AbstractVector, suffix, subdivision::Int)
+function _writeSolution!(vtk, dh::IGADofHandler, u::AbstractVector, prefix, suffix, subdivision::Int)
     for name in Ferrite.getfieldnames(dh)
         data = evaluateAtExportNodes(dh, u, name; subdivision)
-        Ferrite.write_node_data(vtk, data, string(name, suffix))
+        Ferrite.write_node_data(vtk, data, string(prefix, name, suffix))
     end
     return vtk
 end

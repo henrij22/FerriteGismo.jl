@@ -6,6 +6,9 @@ authors = ["Henrik Jakob <jakob@ibb.uni-stuttgart.de>"]
 [workspace]
 projects = ["docs", "test"]
 
+[sources]
+Ferrite = {url = "https://github.com/Ferrite-FEM/Ferrite.jl", rev = "master"}
+
 [deps]
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 Ferrite = "c061ca5d-56c9-439f-9c0e-210fe06d3992"

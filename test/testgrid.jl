@@ -23,7 +23,7 @@
 
     # Transformations
     @test FerriteGismo.toPhysical(grid, [1.0, 1.0]) ≈ Vec{2}((2.0, 2.0))
-    @test FerriteGismo.ref_to_param([0.0, 0.0], first(grid.knotSpans)) ≈ [0.25, 0.25]
+    @test FerriteGismo.ref_to_param([0.0, 0.0], FerriteGismo.getspan(grid, 1)) ≈ [0.25, 0.25]
 
     # ParameterSpaceGrid
     uniformgrid = parameterSpaceGrid(grid)
