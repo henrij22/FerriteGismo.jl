@@ -158,15 +158,18 @@ maximum(u)
 
 ### Postprocessing
 
-Finally, the solution is exported to a VTK file. FerriteGismo evaluates the spline field on
-the parameter-space grid and writes it out just like Ferrite's `VTKGridFile`.
+Finally, the solution is exported to a VTK file. [`VTKBezierFile`](@ref) writes every knot span
+as a Bézier cell, which represents the geometry and the spline field exactly.
 
 ```@example heat
-VTKGridFile("heat_equation", dh) do vtk
+VTKBezierFile("heat_equation", dh) do vtk
     write_solution(vtk, dh, u)
 end
 nothing # hide
 ```
 
 The resulting `heat_equation.vtu` file can be opened in e.g. [ParaView](https://www.paraview.org/)
-to visualize the solution.
+to visualize the solution. ParaView subdivides the Bézier cells for display, increase the
+"Nonlinear Subdivision Level" of the representation for a smoother picture. To obtain an
+ordinary mesh with straight-sided cells instead, use `VTKGridFile`, see
+[Postprocessing and export](../topic_guides/postprocessing.md).

@@ -81,7 +81,7 @@
     @test maximum(u) ≈ 0.3107142857142857
 
     mktempdir() do outdir
-        VTKGridFile(joinpath(outdir, "heat_equation"), dh) do vtk
+        VTKBezierFile(joinpath(outdir, "heat_equation"), dh) do vtk
             write_solution(vtk, dh, u)
         end
     end

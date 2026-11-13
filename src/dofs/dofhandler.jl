@@ -254,7 +254,7 @@ concrete `Ferrite.DofHandler` and read `dh.subdofhandlers`, so they cannot be re
 forwarding to the wrapped handler (which owns none) nor by dispatching on the IGA handler.
 The pattern is therefore assembled here directly from the cell dofs.
 =#
-function Ferrite.allocate_matrix(dh::IGADofHandler)
+function _cellSparsityPattern(dh::IGADofHandler)
     @assert Ferrite.isclosed(dh)
     n = ndofs(dh)
     nnz_per_row = 2 * maximum(Ferrite.ndofs_per_cell, dh.subdofhandlers; init = 1)
@@ -268,6 +268,21 @@ function Ferrite.allocate_matrix(dh::IGADofHandler)
             end
         end
     end
+    return sp
+end
+
+Ferrite.allocate_matrix(dh::IGADofHandler) = Ferrite.allocate_matrix(_cellSparsityPattern(dh))
+
+"""
+    Ferrite.allocate_matrix(dh::IGADofHandler, ch::ConstraintHandler; keep_constrained = true)
+
+Allocate the sparse matrix of an IGA problem with the couplings introduced by the affine constraints of `ch`
+in its sparsity pattern. Without them, condensing an `AffineConstraint` writes outside the pattern.
+`keep_constrained` is forwarded to `Ferrite.add_constraint_entries!`.
+"""
+function Ferrite.allocate_matrix(dh::IGADofHandler, ch::ConstraintHandler; keep_constrained::Bool = true)
+    sp = _cellSparsityPattern(dh)
+    Ferrite.add_constraint_entries!(sp, ch; keep_constrained)
     return Ferrite.allocate_matrix(sp)
 end
 Ferrite.get_grid(dh::IGADofHandler) = Ferrite.get_grid(dh.dh)

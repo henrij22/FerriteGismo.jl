@@ -105,7 +105,7 @@
     @test maximum(abs.(u)) ≈ 0.03392555078206797 rtol = 1.0e-8
 
     mktempdir() do outdir
-        VTKGridFile(joinpath(outdir, "linear_elasticity"), dh) do vtk
+        VTKBezierFile(joinpath(outdir, "linear_elasticity"), dh) do vtk
             write_solution(vtk, dh, u)
         end
     end
