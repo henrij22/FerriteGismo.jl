@@ -21,7 +21,7 @@ function Ferrite.reinit!(
     fun_values = cv.fun_values
 
     # Ferrite.check_reinit_sdim_consistency(:IGACellValues, Ferrite.shape_gradient_type(cv), eltype(x))
-    if cell === nothing && reinit_needs_cell(cv)
+    if cell === nothing && Ferrite.reinit_needs_cell(cv)
         throw(ArgumentError("The cell::AbstractCell input is required to reinit! non-identity function mappings"))
     end
 
