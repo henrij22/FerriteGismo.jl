@@ -235,6 +235,9 @@ end
 
     # edgeControlPoints resolves through any subdomain, not just a single one
     @test !isempty(edgeControlPoints(dh, :left, :u))
+
+    # Clamped edges are not supported on THB patches
+    @test_throws "THB" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, :u)
 end
 
 @testitem "Hierarchical: Poisson solve converges to the analytic value" setup = [HierarchicalPatch] begin
