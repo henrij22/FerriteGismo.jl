@@ -155,7 +155,7 @@ answer. The dofs of a control-point set are known directly though, and the `Diri
 stored like a Ferrite node-set condition (control points in `local_facet_dofs`, global dofs in
 `local_facet_dofs_offset`) so that Ferrite's `update!` computes the inhomogeneities.
 =#
-function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
+function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler, Tv, Ti}, dbc::Dirichlet) where {Tv, Ti}
     @argcheck !Ferrite.isclosed(ch) "The ConstraintHandler is already closed"
     @argcheck eltype(dbc.facets) === Int "Dirichlet conditions on an IGA grid have to be given on a set of control-point indices, e.g. via `prescribeEdge!`"
 
@@ -167,9 +167,10 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
     isempty(dbc.components) && append!(dbc.components, 1:ncomp)
     @argcheck all(c -> 1 <= c <= ncomp, dbc.components) "Components $(dbc.components) out of range for field :$(dbc.field_name) with $ncomp component(s)"
 
+    controlPoints = dbc.facets::Ferrite.OrderedSet{Int}
     constrainedDofs = Int[]
     empty!(dbc.local_facet_dofs)
-    for p in dbc.facets
+    for p in controlPoints
         # Interleaved dof numbering (u1x, u1y, u2x, u2y, ...), as in `fixEdge!`
         for c in dbc.components
             push!(constrainedDofs, offset + ncomp * (p - 1) + c)
@@ -180,7 +181,7 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
 
     push!(ch.dbcs, dbc)
     # Unused on the node-set update path, but `ch.bcvalues` is indexed in lockstep with `ch.dbcs`
-    push!(ch.bcvalues, eltype(ch.bcvalues)(Array{Float64, 3}(undef, 0, 0, 0), Int[], 0))
+    push!(ch.bcvalues, Ferrite.BCValues{Tv, Ti}(Array{Tv, 3}(undef, 0, 0, 0), Ti[], zero(Ti)))
     for d in constrainedDofs
         Ferrite.add_prescribed_dof!(ch, d, NaN, nothing)
     end

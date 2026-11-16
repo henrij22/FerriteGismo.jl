@@ -35,15 +35,15 @@ end
 # in Ferrite's VTKHDF extension), so both file types are covered without depending on VTKHDF.
 const VTKFile = Union{VTKGridFile, Ferrite.VTKHDFGridFile}
 
+# One method per file type rather than one for their union: Ferrite's own method is
+# `(::VTKGridFile, ::AbstractDofHandler, ...)`, and a union in the first argument would tie
+# with it instead of winning on the more specific dof handler.
 """
     write_solution(vtk, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1)
 
 Write every field of the solution vector `u` to `vtk`, evaluated at the nodes of the export
 mesh. Pass the same `subdivision` that the file was opened with.
 """
-# One method per file type rather than one for their union: Ferrite's own method is
-# `(::VTKGridFile, ::AbstractDofHandler, ...)`, and a union in the first argument would tie
-# with it instead of winning on the more specific dof handler.
 function Ferrite.write_solution(
         vtk::VTKGridFile, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1
     )

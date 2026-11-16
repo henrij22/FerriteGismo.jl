@@ -29,7 +29,7 @@ end
 
     H = rdim == sdim ? Ferrite.gethessian(mapping_values) : nothing
     is_vector_valued = first(funvals.Nx) isa Vec
-    Jinv_otimesu_Jinv = is_vector_valued && difforder > 1 ? Ferrite.otimesu(Jinv, Jinv) : nothing
+    Jinv_otimesu_Jinv = is_vector_valued ? Ferrite.otimesu(Jinv, Jinv) : nothing
     @inbounds for j in 1:getnbasefunctions(funvals)
         funvals.Nx[j, q_point] = funvals.Nξ[j, q_point]
         dNdx = funvals.dNdξ[j, q_point] ⋅ Jinv
