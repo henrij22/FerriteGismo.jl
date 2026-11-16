@@ -1,10 +1,8 @@
 # ==============================================================================
 # L2 projection onto the spline space
 #
-# Quadrature point data (stresses, …) is discontinuous and has to be projected onto the
-# spline space before it can be visualized. This is a self-contained implementation on
-# top of the public Ferrite API — `CellValues`, `allocate_matrix`, `start_assemble` /
-# `assemble!` — rather than a specialization of Ferrite's `L2Projector` internals.
+# Projects quadrature point data (stresses, …) onto the spline space for visualization.
+# Written against the public Ferrite API rather than Ferrite's `L2Projector` internals.
 # ==============================================================================
 
 """

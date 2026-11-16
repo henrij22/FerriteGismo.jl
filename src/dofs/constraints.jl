@@ -60,8 +60,7 @@ function fixEdge!(
 
     boundary_cps = toMatrix(boundary(_maybeDeref(base_ip.basis), side_index))
     for p in boundary_cps
-        # Global control-point index of `p` within this field, matching the interleaved
-        # dof numbering (u1x, u1y, u2x, u2y, ...) used when closing the IGADofHandler.
+        # Interleaved dof numbering u1x, u1y, u2x, u2y, ...
         for c in comps
             dof = offset + ncomp * (p - 1) + c
             Ferrite.add_prescribed_dof!(ch, dof, 0.0)
@@ -151,13 +150,10 @@ function _nComponents(dh::IGADofHandler, field_name::Symbol)
 end
 
 #=
-Ferrite's `add!(ch, ::Dirichlet)` derives the constrained dofs from the interpolation of the
-cell the entity belongs to, which the spline basis of an IGA field cannot answer. The IGA
-"nodes" are the control points though, so a `Dirichlet` on a set of control-point indices
-can be resolved directly from the interleaved dof numbering (see the `IGADofHandler`
-`close!`). The `Dirichlet` is stored the way Ferrite stores node-set conditions — the
-control-point indices in `local_facet_dofs` and the global dofs in `local_facet_dofs_offset`
-— so that Ferrite's `update!` path for node sets computes the inhomogeneities.
+Ferrite derives the constrained dofs from the cell interpolation, which a spline basis cannot
+answer. The dofs of a control-point set are known directly though, and the `Dirichlet` is
+stored like a Ferrite node-set condition (control points in `local_facet_dofs`, global dofs in
+`local_facet_dofs_offset`) so that Ferrite's `update!` computes the inhomogeneities.
 =#
 function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
     @argcheck !Ferrite.isclosed(ch) "The ConstraintHandler is already closed"
@@ -178,9 +174,9 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
         for c in dbc.components
             push!(constrainedDofs, offset + ncomp * (p - 1) + c)
         end
-        push!(dbc.local_facet_dofs, p)  # control point index, cf. Ferrite's node-set path
+        push!(dbc.local_facet_dofs, p)
     end
-    copy!(dbc.local_facet_dofs_offset, constrainedDofs) # global dofs, cf. Ferrite's node-set path
+    copy!(dbc.local_facet_dofs_offset, constrainedDofs)
 
     push!(ch.dbcs, dbc)
     # Unused on the node-set update path, but `ch.bcvalues` is indexed in lockstep with `ch.dbcs`

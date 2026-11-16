@@ -1,14 +1,8 @@
 # ==============================================================================
 # VTK export
 #
-# The spline patch itself cannot be written to a VTK file: the formats know linear (and a
-# few higher-order Lagrange) cells, not knot spans. FerriteGismo therefore hands the
-# writers the *export mesh* — an ordinary Ferrite grid of the knot spans, see
-# `exportmesh.jl` — and evaluates the spline fields at its nodes.
-#
-# Everything below is built on the public Ferrite API: the `VTKGridFile` /
-# `VTKHDFGridFile` constructors for a plain grid, and `write_node_data`. What is added
-# here are methods of *public* Ferrite functions dispatched on FerriteGismo's own types.
+# VTK has no knot spans, so the writers get the export mesh (see `exportmesh.jl`) and the
+# spline fields are evaluated at its nodes. See `bezier.jl` for the exact export.
 # ==============================================================================
 
 """

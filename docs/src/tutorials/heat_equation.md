@@ -77,10 +77,9 @@ nothing # hide
 
 ### Boundary conditions
 
-We prescribe homogeneous Dirichlet conditions on all four parametric edges. Because the
-standard `ConstraintHandler` interface is not yet fully supported for IGA grids, we use the
-[`fixEdge!`](@ref) helper, which adds the boundary control-point dofs directly to the
-constraint handler.
+We prescribe ``u = 0`` on all four parametric edges with [`fixEdge!`](@ref). Ferrite's
+`Dirichlet` on a facet set does not work for spline bases, see
+[Boundary conditions](../topic_guides/boundary_conditions.md).
 
 ```@example heat
 ch = ConstraintHandler(dh)
