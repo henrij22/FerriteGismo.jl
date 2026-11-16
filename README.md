@@ -1,9 +1,23 @@
-# FerriteGismo.jl
+<h1 align="center">FerriteGismo.jl</h1>
 
-[![CI](https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml)
-[![code style: runic](https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black)](https://github.com/fredrikekre/Runic.jl)
+<p align="center">
+  <strong>Isogeometric Analysis (IGA) integration for <a href="https://github.com/Ferrite-FEM/Ferrite.jl">Ferrite.jl</a></strong>
+</p>
 
-**Isogeometric Analysis (IGA) integration for [Ferrite.jl](https://github.com/Ferrite-FEM/Ferrite.jl)**
+<p align="center">
+  <a href="https://henrij22.github.io/FerriteGismo.jl/dev"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Docs dev"></a>
+  <a href="https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml"><img src="https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml/badge.svg" alt="Build status"></a>
+  <a href="https://codecov.io/gh/henrij22/FerriteGismo.jl"><img src="https://codecov.io/gh/henrij22/FerriteGismo.jl/graph/badge.svg?token=IoLnf88JWA" alt="codecov"></a>
+  <a href="https://github.com/fredrikekre/Runic.jl"><img src="https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black" alt="Code style: Runic"></a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="https://henrij22.github.io/FerriteGismo.jl/dev">Documentation</a>
+</p>
+
+---
 
 FerriteGismo.jl brings Isogeometric Analysis capabilities to the Ferrite finite element framework by interfacing with the  popular [G+Smo](https://github.com/gismo/gismo) (Geometry + Simulation Modules) C++ library.
 
