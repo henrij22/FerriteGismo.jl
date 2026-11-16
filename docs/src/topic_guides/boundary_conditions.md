@@ -94,8 +94,8 @@ length(ch.prescribed_dofs)
 On a shell patch (`IGAGrid{3, 2}`) of any orientation, the tuple form constrains only the
 displacement normal to the surface, `n ⋅ (d₁ - d₀) = 0` for each control point `d₁` next to the
 side and its neighbour `d₀` on the side, with `n` the surface normal at the Greville point of
-`d₀`. The tangential motion stays free, and the edge, held by `fixEdge!` or `prescribeEdge!`,
-may move. These are affine constraints, built in `close!(ch)`, so the matrix has to come from
+`d₀`. The tangential motion stays free, and the edge may be fixed, prescribed to move or left
+free. These are affine constraints, built in `close!(ch)`, so the matrix has to come from
 `allocate_matrix(dh, ch)`:
 
 ```@example bc
@@ -116,8 +116,10 @@ K = allocate_matrix(shellDh, shellCh)
 count(!isnothing, shellCh.dofcoefficients)   # one affine constraint per control point next to the edge
 ```
 
-Clamped sides may meet at a corner, also on curved shells, and may be given in any order. Both
-forms work on B-spline and NURBS patches; hierarchical (THB) patches are not supported.
+Clamped sides may meet at a corner, also on curved shells, and may be given in any order. At a
+corner both edges have to be held, and their prescribed motions must agree along the normal;
+otherwise only one of the two conditions is enforced. Both forms work on B-spline and NURBS
+patches; hierarchical (THB) patches are not supported.
 
 ## Restrictions
 

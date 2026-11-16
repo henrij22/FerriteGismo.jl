@@ -210,9 +210,11 @@ fields whose rotation follows from that slope (plates, beams, Kirchhoff-Love she
   orientation, with one 3D vector field `(:u,)` or three scalar fields `(:ux, :uy, :uz)`. Each
   control point `d₁` next to `side` and its neighbour `d₀` on the side get `n ⋅ (d₁ - d₀) = 0`,
   with `n` the surface normal at the Greville point of `d₀`: the normal displacement follows the
-  edge, the tangential one stays free. Hold the edge first with `fixEdge!` or `prescribeEdge!`;
-  a prescribed edge may move. Clamped sides may meet at corners and be given in any order. The
-  constraints are affine, so allocate the matrix with `allocate_matrix(dh, ch)`.
+  edge, the tangential one stays free. The edge may be fixed, prescribed to move or left free.
+  Clamped sides may meet at corners and be given in any order; at a corner both edges have to be
+  held (`fixEdge!`, `prescribeEdge!`), and their prescribed motions must agree along the normal,
+  otherwise only one of the two conditions is enforced. The constraints are affine, so allocate
+  the matrix with `allocate_matrix(dh, ch)`.
 
 Works on B-spline and NURBS patches, not on hierarchical (THB) patches.
 
@@ -249,7 +251,6 @@ function fixEdgeTangent!(
     # The three displacement dofs of control point p, of one vector field or three scalar fields
     displacementDofs(p) = [fieldOffset(dh, f) + _nComponents(dh, f) * (p - 1) + c for f in fields for c in 1:_nComponents(dh, f)]
     @argcheck length(displacementDofs(1)) == 3 "pass one 3D vector field or three scalar displacement fields"
-    isDirichlet(dof) = (i = get(ch.dofmapping, dof, 0); i != 0 && isnothing(ch.dofcoefficients[i]))
 
     edge, inward = _edgeAndInwardControlPoints(dh, side, first(fields))
     base_ip = Ferrite.get_base_interpolation(_fieldInterpolation(dh, first(fields)))
@@ -262,7 +263,6 @@ function fixEdgeTangent!(
     conditions = get!(Dict{Vector{Int}, Vector{Vector{Pair{Int, Float64}}}}, _normalConditions, ch)
     for (e, p) in zip(edge, inward)
         d₀, d₁ = displacementDofs(e), displacementDofs(p)
-        @argcheck all(isDirichlet, d₀) "hold the edge with fixEdge! or prescribeEdge! before fixEdgeTangent!"
         J = toMatrix(TinyGismo.jacobian(geometry, greville[e]))   # columns: the tangents ∂x/∂u, ∂x/∂v
         n = normalize(cross(J[:, 1], J[:, 2]))
         push!(get!(Vector{Vector{Pair{Int, Float64}}}, conditions, d₁), [d₁ .=> n; d₀ .=> -n])
@@ -291,7 +291,10 @@ Turns the conditions n ⋅ (d₁ - d₀) = 0 of one control point, one per clamp
 affine constraints by Gauss-Jordan elimination over its free dofs. The largest free coefficient
 of a row becomes its slave, so no constraint refers to another slave, and the rest of the row its
 masters; Ferrite resolves the prescribed masters (the edge d₀) into the inhomogeneity. A row left
-without a free coefficient repeats another one (a flat corner) and is dropped.
+without a free coefficient is dropped: at a flat corner, where both sides have the same normal, it
+only holds if the two edges move alike along n. At a corner of two edges that are not held, a dof
+of one edge row is also the point next to the other side, and Ferrite rejects it as both slave
+and master.
 =#
 function _addNormalConstraints!(ch::ConstraintHandler, conditions)
     tolerance = sqrt(eps())                           # below this a coefficient counts as zero

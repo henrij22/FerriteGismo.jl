@@ -373,7 +373,15 @@ end
     for p in edgeControlPoints(dh, :left, :u)
         @test n ⋅ (Vec{3}(u[collect(dofs(p + 1))]) - Vec{3}(u[collect(dofs(p))])) ≈ 0.0 atol = 1.0e-12
     end
-    @test_throws "fixEdge!" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, (:u,))    # edge not held
+
+    # The edge may also be left free: the control points next to it still follow it along the normal
+    ch = ConstraintHandler(dh)
+    fixEdgeTangent!(dh, ch, :left, (:u,))
+    close!(ch)
+    u = apply!(rand(ndofs(dh)), ch)
+    for p in edgeControlPoints(dh, :left, :u)
+        @test n ⋅ (Vec{3}(u[collect(dofs(p + 1))]) - Vec{3}(u[collect(dofs(p))])) ≈ 0.0 atol = 1.0e-12
+    end
     @test_throws "3D vector field" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, (:u, :u))
     @test_throws "already closed" fixEdgeTangent!(dh, close!(ConstraintHandler(dh)), :left, (:u,))
 end
