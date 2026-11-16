@@ -1,14 +1,9 @@
 # ==============================================================================
 # The export mesh
 #
-# Everything that leaves FerriteGismo for visualization goes through a plain Ferrite
-# `Grid` of the knot spans: the spline patch is sampled at a lattice of parametric
-# points, and those points become the nodes of ordinary `Line`/`Quadrilateral` cells.
-#
-# Building that grid explicitly (instead of hooking into Ferrite's internal VTK grid
-# construction) is what lets the export use only the public Ferrite API — and it makes
-# `subdivision` possible, which samples each knot span several times so that a
-# high-order spline field is not drawn as one straight line per element.
+# Visualization goes through a plain Ferrite `Grid` of `Line`/`Quadrilateral` cells whose
+# nodes sample the patch at parametric points. `subdivision` samples each knot span several
+# times, so a high-order field is not drawn as one straight line per element.
 # ==============================================================================
 
 """
@@ -50,15 +45,8 @@ isHierarchical(grid::IGAGrid) =
     _maybeDeref(TinyGismo.basis(grid.geometry)) isa TinyGismo.HierarchicalBasis
 
 #=
-Export mesh of a hierarchical patch.
-
-The tensor path below builds the Cartesian product of the per-direction element corners. On
-a hierarchical patch that lattice is not the mesh -- it contains cells that were never
-refined into, and grows as the product of every level's breakpoints -- so elements are
-emitted one at a time, each with its own block of nodes.
-
-Nodes are duplicated along element boundaries as a result, which is harmless for drawing and
-for pointwise field values, and is what lets each element be drawn exactly.
+On a hierarchical patch the lattice of all breakpoints is not the mesh, so each element gets
+its own block of nodes. Nodes are therefore duplicated along element boundaries.
 =#
 function _elementwiseExportPoints(grid::IGAGrid{sdim, 1}, subdivision::Int) where {sdim}
     return [

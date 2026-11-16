@@ -1,14 +1,8 @@
 # ==============================================================================
 # VTK export
 #
-# The spline patch itself cannot be written to a VTK file: the formats know linear (and a
-# few higher-order Lagrange) cells, not knot spans. FerriteGismo therefore hands the
-# writers the *export mesh* — an ordinary Ferrite grid of the knot spans, see
-# `exportmesh.jl` — and evaluates the spline fields at its nodes.
-#
-# Everything below is built on the public Ferrite API: the `VTKGridFile` /
-# `VTKHDFGridFile` constructors for a plain grid, and `write_node_data`. What is added
-# here are methods of *public* Ferrite functions dispatched on FerriteGismo's own types.
+# VTK has no knot spans, so the writers get the export mesh (see `exportmesh.jl`) and the
+# spline fields are evaluated at its nodes. See `bezier.jl` for the exact export.
 # ==============================================================================
 
 """
@@ -41,15 +35,15 @@ end
 # in Ferrite's VTKHDF extension), so both file types are covered without depending on VTKHDF.
 const VTKFile = Union{VTKGridFile, Ferrite.VTKHDFGridFile}
 
+# One method per file type rather than one for their union: Ferrite's own method is
+# `(::VTKGridFile, ::AbstractDofHandler, ...)`, and a union in the first argument would tie
+# with it instead of winning on the more specific dof handler.
 """
     write_solution(vtk, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1)
 
 Write every field of the solution vector `u` to `vtk`, evaluated at the nodes of the export
 mesh. Pass the same `subdivision` that the file was opened with.
 """
-# One method per file type rather than one for their union: Ferrite's own method is
-# `(::VTKGridFile, ::AbstractDofHandler, ...)`, and a union in the first argument would tie
-# with it instead of winning on the more specific dof handler.
 function Ferrite.write_solution(
         vtk::VTKGridFile, dh::IGADofHandler, u::AbstractVector, suffix = ""; subdivision::Int = 1
     )

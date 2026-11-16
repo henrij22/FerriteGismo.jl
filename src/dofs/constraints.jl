@@ -60,8 +60,7 @@ function fixEdge!(
 
     boundary_cps = toMatrix(boundary(_maybeDeref(base_ip.basis), side_index))
     for p in boundary_cps
-        # Global control-point index of `p` within this field, matching the interleaved
-        # dof numbering (u1x, u1y, u2x, u2y, ...) used when closing the IGADofHandler.
+        # Interleaved dof numbering u1x, u1y, u2x, u2y, ...
         for c in comps
             dof = offset + ncomp * (p - 1) + c
             Ferrite.add_prescribed_dof!(ch, dof, 0.0)
@@ -151,15 +150,12 @@ function _nComponents(dh::IGADofHandler, field_name::Symbol)
 end
 
 #=
-Ferrite's `add!(ch, ::Dirichlet)` derives the constrained dofs from the interpolation of the
-cell the entity belongs to, which the spline basis of an IGA field cannot answer. The IGA
-"nodes" are the control points though, so a `Dirichlet` on a set of control-point indices
-can be resolved directly from the interleaved dof numbering (see the `IGADofHandler`
-`close!`). The `Dirichlet` is stored the way Ferrite stores node-set conditions — the
-control-point indices in `local_facet_dofs` and the global dofs in `local_facet_dofs_offset`
-— so that Ferrite's `update!` path for node sets computes the inhomogeneities.
+Ferrite derives the constrained dofs from the cell interpolation, which a spline basis cannot
+answer. The dofs of a control-point set are known directly though, and the `Dirichlet` is
+stored like a Ferrite node-set condition (control points in `local_facet_dofs`, global dofs in
+`local_facet_dofs_offset`) so that Ferrite's `update!` computes the inhomogeneities.
 =#
-function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
+function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler, Tv, Ti}, dbc::Dirichlet) where {Tv, Ti}
     @argcheck !Ferrite.isclosed(ch) "The ConstraintHandler is already closed"
     @argcheck eltype(dbc.facets) === Int "Dirichlet conditions on an IGA grid have to be given on a set of control-point indices, e.g. via `prescribeEdge!`"
 
@@ -171,26 +167,26 @@ function Ferrite.add!(ch::ConstraintHandler{<:IGADofHandler}, dbc::Dirichlet)
     isempty(dbc.components) && append!(dbc.components, 1:ncomp)
     @argcheck all(c -> 1 <= c <= ncomp, dbc.components) "Components $(dbc.components) out of range for field :$(dbc.field_name) with $ncomp component(s)"
 
+    controlPoints = dbc.facets::Ferrite.OrderedSet{Int}
     constrainedDofs = Int[]
     empty!(dbc.local_facet_dofs)
-    for p in dbc.facets
+    for p in controlPoints
         # Interleaved dof numbering (u1x, u1y, u2x, u2y, ...), as in `fixEdge!`
         for c in dbc.components
             push!(constrainedDofs, offset + ncomp * (p - 1) + c)
         end
-        push!(dbc.local_facet_dofs, p)  # control point index, cf. Ferrite's node-set path
+        push!(dbc.local_facet_dofs, p)
     end
-    copy!(dbc.local_facet_dofs_offset, constrainedDofs) # global dofs, cf. Ferrite's node-set path
+    copy!(dbc.local_facet_dofs_offset, constrainedDofs)
 
     push!(ch.dbcs, dbc)
     # Unused on the node-set update path, but `ch.bcvalues` is indexed in lockstep with `ch.dbcs`
-    push!(ch.bcvalues, eltype(ch.bcvalues)(Array{Float64, 3}(undef, 0, 0, 0), Int[], 0))
+    push!(ch.bcvalues, Ferrite.BCValues{Tv, Ti}(Array{Tv, 3}(undef, 0, 0, 0), Ti[], zero(Ti)))
     for d in constrainedDofs
         Ferrite.add_prescribed_dof!(ch, d, NaN, nothing)
     end
     return ch
 end
-
 
 # ==============================================================================
 # Tangent fixity (clamped edges)
@@ -200,23 +196,22 @@ end
     fixEdgeTangent!(dh::IGADofHandler, ch::ConstraintHandler, side, field_name::Symbol; components = nothing)
     fixEdgeTangent!(dh::IGADofHandler, ch::ConstraintHandler, side, fields::Tuple)
 
-Clamp the boundary `side` of the parametric domain by also fixing the slope across it, for
-fields whose rotation follows from that slope (plates, beams, Kirchhoff-Love shells).
+Fix the slope across the boundary `side`, e.g. to clamp plates, beams or Kirchhoff-Love shells.
 
-- `fixEdgeTangent!(dh, ch, side, field_name; components = nothing)` fixes the control points next
-  to `side` to zero; with the edge fixed by `fixEdge!`, this clamps it. `components` is one index
-  or a collection.
-- `fixEdgeTangent!(dh, ch, side, fields::Tuple)` clamps a shell patch (`IGAGrid{3, 2}`) of any
-  orientation, with one 3D vector field `(:u,)` or three scalar fields `(:ux, :uy, :uz)`. Each
-  control point `d₁` next to `side` and its neighbour `d₀` on the side get `n ⋅ (d₁ - d₀) = 0`,
-  with `n` the surface normal at the Greville point of `d₀`: the normal displacement follows the
-  edge, the tangential one stays free. The edge may be fixed, prescribed to move or left free.
-  Clamped sides may meet at corners and be given in any order; at a corner both edges have to be
-  held (`fixEdge!`, `prescribeEdge!`), and their prescribed motions must agree along the normal,
-  otherwise only one of the two conditions is enforced. The constraints are affine, so allocate
-  the matrix with `allocate_matrix(dh, ch)`.
+The `Symbol` form fixes the control points next to `side` to zero, optionally only the given
+`components`. Together with `fixEdge!` on
+the same side this clamps the edge.
 
-Works on B-spline and NURBS patches, not on hierarchical (THB) patches.
+The `Tuple` form is for shell patches (`IGAGrid{3, 2}`), with one 3D vector field `(:u,)` or
+three scalar fields `(:ux, :uy, :uz)`. Each control point `d₁` next to `side` gets
+`n ⋅ (d₁ - d₀) = 0`, with `d₀` its neighbour on the side and `n` the surface normal there, so
+only the normal displacement is tied to the edge. The edge itself may be fixed, prescribed or
+free. These are affine constraints, so allocate the matrix with `allocate_matrix(dh, ch)`.
+
+Where two clamped sides meet, both edges have to be held and their prescribed motions must agree
+along the normal, otherwise only one of the two conditions is enforced.
+
+Hierarchical (THB) patches are not supported.
 
 # Example
 ```julia
@@ -248,7 +243,6 @@ function fixEdgeTangent!(
     )
     @argcheck Ferrite.get_grid(dh) isa IGAGrid{3, 2} "the tuple form of fixEdgeTangent! is for shell patches, IGAGrid{3, 2}"
     @argcheck !Ferrite.isclosed(ch) "The ConstraintHandler is already closed"
-    # The three displacement dofs of control point p, of one vector field or three scalar fields
     displacementDofs(p) = [fieldOffset(dh, f) + _nComponents(dh, f) * (p - 1) + c for f in fields for c in 1:_nComponents(dh, f)]
     @argcheck length(displacementDofs(1)) == 3 "pass one 3D vector field or three scalar displacement fields"
 
@@ -258,26 +252,26 @@ function fixEdgeTangent!(
     greville = [[u, v] for v in grevilleV for u in grevilleU]
     geometry = Ferrite.get_grid(dh).geometry
 
-    # One condition n ⋅ (d₁ - d₀) = 0 per control point d₁ next to the side, with d₀ its neighbour on
-    # the side and n the unit normal at the Greville point of d₀; `close!` turns them into constraints
+    # Only collected here: a control point at a corner gets a condition from each side, and
+    # those have to be solved together in `close!`.
     conditions = get!(Dict{Vector{Int}, Vector{Vector{Pair{Int, Float64}}}}, _normalConditions, ch)
     for (e, p) in zip(edge, inward)
         d₀, d₁ = displacementDofs(e), displacementDofs(p)
-        J = toMatrix(TinyGismo.jacobian(geometry, greville[e]))   # columns: the tangents ∂x/∂u, ∂x/∂v
+        J = toMatrix(TinyGismo.jacobian(geometry, greville[e]))
         n = normalize(cross(J[:, 1], J[:, 2]))
         push!(get!(Vector{Vector{Pair{Int, Float64}}}, conditions, d₁), [d₁ .=> n; d₀ .=> -n])
     end
     return nothing
 end
 
-# The conditions of the tuple form per control point, as rows of `dof => coefficient` pairs, kept
-# until `close!` when all sides are known
+# Pending conditions of the tuple form, keyed by the dofs of the control point next to the side.
+# Kept outside the ConstraintHandler since Ferrite's struct has no room for them.
 const _normalConditions = WeakKeyDict{ConstraintHandler, Dict{Vector{Int}, Vector{Vector{Pair{Int, Float64}}}}}()
 
 function Ferrite.close!(ch::ConstraintHandler{<:IGADofHandler})
     conditions = get(_normalConditions, ch, nothing)
     if !isnothing(conditions)
-        # A fixed order, so the constraints do not depend on the order of the calls
+        # Sorted, so the result does not depend on the order of the fixEdgeTangent! calls
         for d₁ in sort!(collect(keys(conditions)))
             _addNormalConstraints!(ch, sort!(conditions[d₁]))
         end
@@ -287,24 +281,24 @@ function Ferrite.close!(ch::ConstraintHandler{<:IGADofHandler})
 end
 
 #=
-Turns the conditions n ⋅ (d₁ - d₀) = 0 of one control point, one per clamped side next to it, into
-affine constraints by Gauss-Jordan elimination over its free dofs. The largest free coefficient
-of a row becomes its slave, so no constraint refers to another slave, and the rest of the row its
-masters; Ferrite resolves the prescribed masters (the edge d₀) into the inhomogeneity. A row left
-without a free coefficient is dropped: at a flat corner, where both sides have the same normal, it
-only holds if the two edges move alike along n. At a corner of two edges that are not held, a dof
-of one edge row is also the point next to the other side, and Ferrite rejects it as both slave
-and master.
+Gauss-Jordan elimination of the conditions of one control point over its free dofs, so that no
+slave is also the master of another constraint. Prescribed edge dofs stay masters and Ferrite
+moves them into the inhomogeneity.
+
+A row without a free coefficient left is dropped. That happens at a corner where both sides have
+the same normal; the dropped condition then only holds if both edges move alike along n.
+If neither edge at a corner is held, an edge dof of one side ends up as slave and master, which
+Ferrite rejects.
 =#
 function _addNormalConstraints!(ch::ConstraintHandler, conditions)
-    tolerance = sqrt(eps())                           # below this a coefficient counts as zero
+    tolerance = sqrt(eps())
     dofs = unique(first.(reduce(vcat, conditions)))
-    rows = zeros(length(conditions), length(dofs))   # one condition per row, one dof per column
+    rows = zeros(length(conditions), length(dofs))
     for (r, condition) in enumerate(conditions), (dof, coefficient) in condition
         rows[r, findfirst(==(dof), dofs)] += coefficient
     end
     free = [j for j in eachindex(dofs) if !haskey(ch.dofmapping, dofs[j])]
-    pivots = Tuple{Int, Int}[]                        # (row, column)
+    pivots = Tuple{Int, Int}[]
     for r in axes(rows, 1)
         isempty(free) && break
         value, i = findmax(j -> abs(rows[r, j]), free)
@@ -316,7 +310,6 @@ function _addNormalConstraints!(ch::ConstraintHandler, conditions)
         end
         push!(pivots, (r, p))
     end
-    # Row r reads d_p + Σ rows[r, j] d_j = 0
     for (r, p) in pivots
         masters = Pair{Int, Float64}[dofs[j] => -rows[r, j] for j in eachindex(dofs) if j != p && abs(rows[r, j]) > tolerance]
         add!(ch, AffineConstraint(dofs[p], masters, 0.0))
@@ -324,11 +317,8 @@ function _addNormalConstraints!(ch::ConstraintHandler, conditions)
     return ch
 end
 
-#=
-The control points on `side`, and those next to it, which carry the slope across the side. The
-first parametric direction runs fastest in the numbering, so the row next to left/right is one
-control point away and the row next to bottom/top one whole row away.
-=#
+# The control points on `side` and the row next to it. The first parametric direction runs
+# fastest, so that row is one control point away for left/right and one whole row for bottom/top.
 function _edgeAndInwardControlPoints(dh::IGADofHandler, side, field_name::Symbol)
     base_ip = Ferrite.get_base_interpolation(_fieldInterpolation(dh, field_name))
     @argcheck !(_maybeDeref(base_ip.basis) isa TinyGismo.HierarchicalBasis) "fixEdgeTangent! does not support hierarchical (THB) patches"

@@ -38,9 +38,8 @@ u1x, u1y, u2x, u2y, …
 
 so the dofs of control point `p` of a `vdim`-component field are
 `offset + vdim * (p - 1) + c` for `c in 1:vdim`, where `offset` is the offset of the field
-inside the global vector. That formula is the one thing worth remembering about the
-`IGADofHandler`; it is how the boundary conditions, the reaction forces of a boundary and any
-hand-written postprocessing address their dofs:
+inside the global vector. Boundary conditions, reaction forces and hand-written
+postprocessing all address their dofs this way:
 
 ```@example dofs
 controlPoint = 7
@@ -105,6 +104,7 @@ layout; the scalar and the vector-valued case are handled by different methods. 
 
 ## Limitations
 
-- Only one `SubDofHandler` (one cell type, one patch) is supported.
+- Several `SubDofHandler`s are only supported for grouping the elements of a hierarchical
+  patch, see [Hierarchical splines](hierarchical_splines.md).
 - The handler relies on internal Ferrite functionality; see the
   [Developer documentation](../developer.md) for why, and for what a redesign would change.

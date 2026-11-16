@@ -30,8 +30,7 @@ Ferrite one.
 
 ## How the documentation is organized
 
-This high-level view of the documentation structure will help you find what you are looking
-for:[^1]
+The documentation is organized as follows:[^1]
 
 - [**Tutorials**](tutorials/index.md) are thoroughly documented, worked examples that guide
   you through solving a problem with FerriteGismo from start to finish.

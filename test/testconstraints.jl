@@ -287,7 +287,6 @@ end
     close!(dh)
     dof(p, c) = 2 * (p - 1) + c
 
-    # The row next to a side is one control point away on left/right and one row on bottom/top
     for (side, step) in ((:left, 1), (:right, -1), (:bottom, 5), (:top, -5))
         ch = ConstraintHandler(dh)
         fixEdge!(dh, ch, side, :u; components = 2)
@@ -306,14 +305,13 @@ end
 
     geometry = createBSplineSquare(1.0)
     degreeElevate!(geometry, 1)
-    uniformRefine!(geometry, 2)      # 5 x 5 control points
+    uniformRefine!(geometry, 2)
     planar = toMatrix(coefs(geometry))
     ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
     sides = (:left, :right, :bottom, :top)
     step = Dict(:left => 1, :right => -1, :bottom => 5, :top => -5)   # to the row next to the side
 
-    # A shell z = h(x, y) clamped on every side, with one vector field or three scalar fields.
-    # `symbolSides` are clamped afterwards with the Symbol form, on the out-of-plane component.
+    # Shell z = h(x, y) clamped on all sides; `symbolSides` additionally get the Symbol form on u_z
     function clampedShell(h, fields = (:u,); order = sides, symbolSides = ())
         surface = TensorBSpline{2}(TinyGismo.basis(geometry), [planar h.(planar[:, 1], planar[:, 2])])
         dh = IGADofHandler(IGAGrid{3, 2}(surface))
@@ -328,13 +326,12 @@ end
         return dh, ch, displacement
     end
 
-    # A tilted plane and a curved surface, whose sides meet at corners with different normals
+    # On the curved surface the sides meet at corners with different normals
     surfaces = ((x, y) -> x / 2, (x, y) -> (0.5, 0.0)), ((x, y) -> x * y / 2, (x, y) -> (y / 2, x / 2))
     for (h, ∇h) in surfaces, fields in ((:u,), (:ux, :uy, :uz))
         dh, ch, dofs = clampedShell(h, fields)
         u = apply!(rand(ndofs(dh)), ch)
-        # n ⋅ (d₁ - d₀) = n ⋅ d₁ = 0 next to every fixed edge point. The planar map is the identity,
-        # so the Greville point of d₀ is the edge point: n is the exact normal there.
+        # x and y are the parameters, so the Greville point of d₀ is d₀ itself and ∇h gives the exact normal
         for side in sides, p in edgeControlPoints(dh, side, first(fields))
             slope = ∇h(planar[p, 1], planar[p, 2])
             n = normalize(Vec((-slope[1], -slope[2], 1.0)))
@@ -342,14 +339,12 @@ end
         end
     end
 
-    # One constraint per control point next to a side; the four corner points of the curved
-    # surface get one from each side. The order of the calls does not matter.
+    # Corner points get a condition from each side; on the tilted plane the two coincide and one is dropped
     @test count(!isnothing, clampedShell(first(surfaces[1]))[2].dofcoefficients) == 8
     @test count(!isnothing, clampedShell(first(surfaces[2]))[2].dofcoefficients) == 12
     @test clampedShell(first(surfaces[2]); order = reverse(sides))[2].dofcoefficients == clampedShell(first(surfaces[2]))[2].dofcoefficients
 
-    # Both forms on one curved shell, sharing the corners: n ⋅ (d₁ - d₀) = 0 next to the tuple
-    # sides, d_z = 0 next to the Symbol sides
+    # Both forms on one shell, sharing corners
     h, ∇h = surfaces[2]
     dh, ch, dofs = clampedShell(h; order = (:left, :bottom), symbolSides = (:right, :top))
     u = apply!(rand(ndofs(dh)), ch)
@@ -361,7 +356,7 @@ end
         @test u[dofs(p + step[side])[3]] == 0.0
     end
 
-    # A prescribed edge may move: the control points next to it follow along the normal
+    # Prescribed edge
     dh, _, dofs = clampedShell(first(surfaces[1]))
     ch = ConstraintHandler(dh)
     prescribeEdge!(dh, ch, :left, :u, (x, t) -> [0.0, 0.0, 0.1t])
@@ -374,7 +369,7 @@ end
         @test n ⋅ (Vec{3}(u[collect(dofs(p + 1))]) - Vec{3}(u[collect(dofs(p))])) ≈ 0.0 atol = 1.0e-12
     end
 
-    # The edge may also be left free: the control points next to it still follow it along the normal
+    # Free edge
     ch = ConstraintHandler(dh)
     fixEdgeTangent!(dh, ch, :left, (:u,))
     close!(ch)

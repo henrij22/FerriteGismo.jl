@@ -77,10 +77,9 @@ side, i.e. the IGA counterpart of summing the nodal reactions of a facet set.
 
 ## Clamped edges
 
-Where clamping also fixes a slope — Kirchhoff plates, Euler-Bernoulli beams, rotation-free
-shells — fixing the edge is not enough: the derivative across a side also depends on the row of
-control points next to it. [`fixEdgeTangent!`](@ref) fixes that row to zero, which clamps an edge
-held at zero by `fixEdge!`:
+For plates, beams and rotation-free shells, clamping also fixes the slope across a side, which
+depends on the row of control points next to it. [`fixEdgeTangent!`](@ref) fixes that row to
+zero; together with `fixEdge!` this clamps the edge:
 
 ```@example bc
 ch = ConstraintHandler(dh)
@@ -91,16 +90,13 @@ close!(ch)
 length(ch.prescribed_dofs)
 ```
 
-On a shell patch (`IGAGrid{3, 2}`) of any orientation, the tuple form constrains only the
-displacement normal to the surface, `n ⋅ (d₁ - d₀) = 0` for each control point `d₁` next to the
-side and its neighbour `d₀` on the side, with `n` the surface normal at the Greville point of
-`d₀`. The tangential motion stays free, and the edge may be fixed, prescribed to move or left
-free. These are affine constraints, built in `close!(ch)`, so the matrix has to come from
-`allocate_matrix(dh, ch)`:
+On a shell patch (`IGAGrid{3, 2}`), the tuple form only ties the normal displacement of the row
+next to the side to the edge, `n ⋅ (d₁ - d₀) = 0`, and leaves the tangential motion free. These
+are affine constraints, so the matrix has to come from `allocate_matrix(dh, ch)`:
 
 ```@example bc
 coordinates = toMatrix(coefs(geometry))
-tilted = [coordinates 0.5 .* coordinates[:, 1]]   # the square lifted into the plane z = x/2
+tilted = [coordinates 0.5 .* coordinates[:, 1]]   # the plane z = x/2
 shellGrid = IGAGrid{3, 2}(TensorBSpline{2}(TinyGismo.basis(geometry), tilted))
 
 shellDh = IGADofHandler(shellGrid)
@@ -113,13 +109,12 @@ fixEdgeTangent!(shellDh, shellCh, :left, (:u,))   # or three scalar fields (:ux,
 close!(shellCh)
 K = allocate_matrix(shellDh, shellCh)
 
-count(!isnothing, shellCh.dofcoefficients)   # one affine constraint per control point next to the edge
+count(!isnothing, shellCh.dofcoefficients)
 ```
 
-Clamped sides may meet at a corner, also on curved shells, and may be given in any order. At a
-corner both edges have to be held, and their prescribed motions must agree along the normal;
-otherwise only one of the two conditions is enforced. Both forms work on B-spline and NURBS
-patches; hierarchical (THB) patches are not supported.
+Where two clamped sides meet, both edges have to be held and their prescribed motions must
+agree along the normal; otherwise only one of the two conditions is enforced. Hierarchical
+(THB) patches are not supported.
 
 ## Restrictions
 
