@@ -44,6 +44,7 @@ the [Boundary conditions](topic_guides/boundary_conditions.md) topic guide.
 
 ```@docs
 fixEdge!
+fixEdgeTangent!
 prescribeEdge!
 edgeControlPoints
 ```

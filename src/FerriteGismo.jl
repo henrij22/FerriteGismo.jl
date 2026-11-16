@@ -64,7 +64,7 @@ export VTKBezierFile
 # Elements
 
 # Dofs
-export IGADofHandler, fixEdge!, prescribeEdge!, edgeControlPoints, fieldOffset
+export IGADofHandler, fixEdge!, fixEdgeTangent!, prescribeEdge!, edgeControlPoints, fieldOffset
 
 # Interpolations
 export IGAInterpolation

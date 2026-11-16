@@ -276,3 +276,112 @@ end
     close!(ch)
     @test_throws ArgumentError prescribeEdge!(dh, ch, :right, :u, 0.0)
 end
+
+@testitem "fixEdgeTangent! fixes the control points next to a side" begin
+    geometry = createBSplineSquare(1.0)
+    degreeElevate!(geometry, 1)
+    uniformRefine!(geometry, 2)      # 5 x 5 control points
+    ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
+    dh = IGADofHandler(IGAGrid{2}(geometry))
+    add!(dh, :u, ip^2)
+    close!(dh)
+    dof(p, c) = 2 * (p - 1) + c
+
+    # The row next to a side is one control point away on left/right and one row on bottom/top
+    for (side, step) in ((:left, 1), (:right, -1), (:bottom, 5), (:top, -5))
+        ch = ConstraintHandler(dh)
+        fixEdge!(dh, ch, side, :u; components = 2)
+        fixEdgeTangent!(dh, ch, side, :u; components = 2)
+        close!(ch)
+        edge = collect(edgeControlPoints(dh, side, :u))
+        @test sort(ch.prescribed_dofs) == sort(dof.([edge; edge .+ step], 2))
+    end
+
+    @test_throws "out of range" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, :u; components = 3)
+    @test_throws "shell patches" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, (:u,))
+end
+
+@testitem "fixEdgeTangent! clamps a shell patch" begin
+    using LinearAlgebra
+
+    geometry = createBSplineSquare(1.0)
+    degreeElevate!(geometry, 1)
+    uniformRefine!(geometry, 2)      # 5 x 5 control points
+    planar = toMatrix(coefs(geometry))
+    ip = IGAInterpolation{RefQuadrilateral}(TinyGismo.basis(geometry))
+    sides = (:left, :right, :bottom, :top)
+    step = Dict(:left => 1, :right => -1, :bottom => 5, :top => -5)   # to the row next to the side
+
+    # A shell z = h(x, y) clamped on every side, with one vector field or three scalar fields.
+    # `symbolSides` are clamped afterwards with the Symbol form, on the out-of-plane component.
+    function clampedShell(h, fields = (:u,); order = sides, symbolSides = ())
+        surface = TensorBSpline{2}(TinyGismo.basis(geometry), [planar h.(planar[:, 1], planar[:, 2])])
+        dh = IGADofHandler(IGAGrid{3, 2}(surface))
+        length(fields) == 1 ? add!(dh, :u, ip^3) : foreach(f -> add!(dh, f, ip), fields)
+        close!(dh)
+        ch = ConstraintHandler(dh)
+        foreach(side -> foreach(f -> fixEdge!(dh, ch, side, f), fields), sides)
+        foreach(side -> fixEdgeTangent!(dh, ch, side, fields), order)
+        foreach(side -> fixEdgeTangent!(dh, ch, side, :u; components = 3), symbolSides)
+        close!(ch)
+        displacement(p) = Vec(ntuple(c -> length(fields) == 1 ? 3 * (p - 1) + c : fieldOffset(dh, fields[c]) + p, 3))
+        return dh, ch, displacement
+    end
+
+    # A tilted plane and a curved surface, whose sides meet at corners with different normals
+    surfaces = ((x, y) -> x / 2, (x, y) -> (0.5, 0.0)), ((x, y) -> x * y / 2, (x, y) -> (y / 2, x / 2))
+    for (h, ∇h) in surfaces, fields in ((:u,), (:ux, :uy, :uz))
+        dh, ch, dofs = clampedShell(h, fields)
+        u = apply!(rand(ndofs(dh)), ch)
+        # n ⋅ (d₁ - d₀) = n ⋅ d₁ = 0 next to every fixed edge point. The planar map is the identity,
+        # so the Greville point of d₀ is the edge point: n is the exact normal there.
+        for side in sides, p in edgeControlPoints(dh, side, first(fields))
+            slope = ∇h(planar[p, 1], planar[p, 2])
+            n = normalize(Vec((-slope[1], -slope[2], 1.0)))
+            @test n ⋅ Vec{3}(u[collect(dofs(p + step[side]))]) ≈ 0.0 atol = 1.0e-12
+        end
+    end
+
+    # One constraint per control point next to a side; the four corner points of the curved
+    # surface get one from each side. The order of the calls does not matter.
+    @test count(!isnothing, clampedShell(first(surfaces[1]))[2].dofcoefficients) == 8
+    @test count(!isnothing, clampedShell(first(surfaces[2]))[2].dofcoefficients) == 12
+    @test clampedShell(first(surfaces[2]); order = reverse(sides))[2].dofcoefficients == clampedShell(first(surfaces[2]))[2].dofcoefficients
+
+    # Both forms on one curved shell, sharing the corners: n ⋅ (d₁ - d₀) = 0 next to the tuple
+    # sides, d_z = 0 next to the Symbol sides
+    h, ∇h = surfaces[2]
+    dh, ch, dofs = clampedShell(h; order = (:left, :bottom), symbolSides = (:right, :top))
+    u = apply!(rand(ndofs(dh)), ch)
+    for side in (:left, :bottom), p in edgeControlPoints(dh, side, :u)
+        slope = ∇h(planar[p, 1], planar[p, 2])
+        @test normalize(Vec((-slope[1], -slope[2], 1.0))) ⋅ Vec{3}(u[collect(dofs(p + step[side]))]) ≈ 0.0 atol = 1.0e-12
+    end
+    for side in (:right, :top), p in edgeControlPoints(dh, side, :u)
+        @test u[dofs(p + step[side])[3]] == 0.0
+    end
+
+    # A prescribed edge may move: the control points next to it follow along the normal
+    dh, _, dofs = clampedShell(first(surfaces[1]))
+    ch = ConstraintHandler(dh)
+    prescribeEdge!(dh, ch, :left, :u, (x, t) -> [0.0, 0.0, 0.1t])
+    fixEdgeTangent!(dh, ch, :left, (:u,))
+    close!(ch)
+    Ferrite.update!(ch, 1.0)
+    u = apply!(rand(ndofs(dh)), ch)
+    n = normalize(Vec((-0.5, 0.0, 1.0)))
+    for p in edgeControlPoints(dh, :left, :u)
+        @test n ⋅ (Vec{3}(u[collect(dofs(p + 1))]) - Vec{3}(u[collect(dofs(p))])) ≈ 0.0 atol = 1.0e-12
+    end
+
+    # The edge may also be left free: the control points next to it still follow it along the normal
+    ch = ConstraintHandler(dh)
+    fixEdgeTangent!(dh, ch, :left, (:u,))
+    close!(ch)
+    u = apply!(rand(ndofs(dh)), ch)
+    for p in edgeControlPoints(dh, :left, :u)
+        @test n ⋅ (Vec{3}(u[collect(dofs(p + 1))]) - Vec{3}(u[collect(dofs(p))])) ≈ 0.0 atol = 1.0e-12
+    end
+    @test_throws "3D vector field" fixEdgeTangent!(dh, ConstraintHandler(dh), :left, (:u, :u))
+    @test_throws "already closed" fixEdgeTangent!(dh, close!(ConstraintHandler(dh)), :left, (:u,))
+end
