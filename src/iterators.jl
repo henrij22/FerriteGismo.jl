@@ -52,12 +52,8 @@ function Ferrite.CellIterator(gridordh::Union{IGAGrid, IGADofHandler}, flags::Up
     return CellIterator(gridordh, nothing, flags)
 end
 
-#=
-Iterating a `SubDofHandler` has to go through the IGA cache too. Without these, Ferrite's
-generic `CellCache(sdh)`/`CellIterator(sdh)` would be used and the IGA `reinit!`/`celldofs!`
-path bypassed. These are what make subdomain-wise iteration work for IGA, which is required
-once several `SubDofHandler`s share one handler.
-=#
+# Without these, iterating a `SubDofHandler` would use Ferrite's generic cache and bypass the
+# IGA `reinit!`/`celldofs!`.
 function Ferrite.CellCache(sdh::SubDofHandler{<:IGADofHandler}, flags::UpdateFlags = UpdateFlags())
     return CellCache(sdh.dh, flags)
 end

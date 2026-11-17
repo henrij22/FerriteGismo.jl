@@ -1,22 +1,16 @@
 # Developer documentation
 
-This page describes the internals of FerriteGismo. It is aimed at contributors and at users
-who want to understand how the package plugs a spline (G+Smo) discretization into the
-Ferrite finite element machinery. It is *not* required reading for using the package — see
-the [Tutorials](tutorials/index.md) and [API Reference](api_reference.md) for that.
+How FerriteGismo plugs a G+Smo spline discretization into Ferrite, for contributors.
 
 !!! warning
-    FerriteGismo currently depends on a number of **internal** Ferrite functions (methods
-    that are not part of Ferrite's public API). This makes the package sensitive to Ferrite
-    releases and is one of the main areas that will need to be revisited as the package
-    matures. Several design decisions — notably the custom [`IGADofHandler`](@ref) — are
-    known to be suboptimal and are candidates for a future redesign.
+    FerriteGismo depends on a number of **internal** Ferrite functions, which makes it
+    sensitive to Ferrite releases. The custom [`IGADofHandler`](@ref) in particular is a
+    candidate for a redesign.
 
 ## Design overview
 
-The central idea of FerriteGismo is to reuse Ferrite's assembly loop, iterators, cell
-values and solvers unchanged, and to only replace the pieces that are specific to the
-geometry description:
+Ferrite's assembly loop, iterators, cell values and solvers are reused unchanged; only the
+pieces specific to the geometry are replaced:
 
 | Concept              | Ferrite                    | FerriteGismo                          |
 |:---------------------|:---------------------------|:--------------------------------------|
@@ -61,95 +55,65 @@ curved geometry or a high-order field is resolved in the picture.
 
 ## Interpolations
 
-[`IGAInterpolation`](@ref) is a `Ferrite.ScalarInterpolation` wrapping a G+Smo basis. The
-key difference from a Lagrange interpolation is that the set of active basis functions
-depends on the current knot span. Unlike a `currentElement` field on the interpolation
-itself, `IGAInterpolation` stays stateless: `reinit!` remaps the quadrature points into the
-active knot span (via `FerriteGismo.ref_to_param` and [`FerriteGismo.KnotSpanWrapper`](@ref))
-before evaluation.
-
-FerriteGismo provides IGA-specific methods for the low-level Ferrite entry points that
-evaluate shape functions and their derivatives on the reference element:
+[`IGAInterpolation`](@ref) is a `Ferrite.ScalarInterpolation` wrapping a G+Smo basis. Unlike
+a Lagrange interpolation, its active basis functions depend on the knot span. The
+interpolation stays stateless: `reinit!` maps the quadrature points into the current knot
+span (`FerriteGismo.ref_to_param`) before the basis is evaluated through:
 
 - `Ferrite.reference_shape_values!`
 - `Ferrite.reference_shape_gradients_and_values!`
 - `Ferrite.reference_shape_hessians_gradients_and_values!`
 
-These receive the already knot-span-remapped points and delegate evaluation to the G+Smo
-basis.
-
 ### Geometry mapping
 
-The mapping from the reference element to physical space is Ferrite's own
-`IdentityMapping`: `IGAInterpolation` does not define a mapping of its own. Jacobian,
-Hessian (including embedded elements, `rdim < sdim`) and the push-forward of the reference
-gradients are all computed by Ferrite's generic `calculate_mapping` / `apply_mapping!`.
-
-Since the basis depends on the knot span, FerriteGismo specializes
-`Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})` (and the `FacetValues`
-variant): it remaps the quadrature points into the knot span with
-`FerriteGismo.ref_to_param`, re-evaluates the interpolation, calls Ferrite's generic
-`reinit!` and scales `detJdV` by the knot-span area.
+The mapping is Ferrite's `IdentityMapping`, so Jacobian, Hessian (also for embedded
+elements) and the push-forward come from Ferrite. Only
+`Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})` is specialized: it maps the
+quadrature points into the knot span, re-evaluates the basis, calls Ferrite's generic
+`reinit!` and scales `detJdV` by the knot-span area relative to the reference element.
 
 ### Facet values
 
-Boundary integration follows the same pattern: FerriteGismo specializes
-`Ferrite.reinit!(::FacetValues, ::CellCache, facet_nr)` for IGA interpolations. Because the
-facet quadrature points live on the reference cell, the spline basis is re-evaluated for
-the active knot span on every `reinit!`, exactly as for `CellValues`. The weighted facet
-normal is computed from the parametric Jacobian with `Ferrite.weighted_normal`, and the
-quadrature weights are scaled by the knot-span extent along the facet's tangential
-direction (`FerriteGismo.facetScaleOfKnotSpan`). Boundary facet sets are computed on demand
-by `Ferrite.getfacetset(::IGAGrid, name)` from the knot-span corners, since an `IGAGrid` is
-a structured tensor-product grid.
+`Ferrite.reinit!(::FacetValues, ::CellCache, facet_nr)` works like the cell version, with
+the weights scaled by the knot-span length along the facet
+(`FerriteGismo.facetScaleOfKnotSpan`). Facet sets are computed on demand from the knot-span
+corners by `Ferrite.getfacetset(::IGAGrid, name)`.
 
 ## Degree-of-freedom handling
 
-The [`IGADofHandler`](@ref) wraps a regular `Ferrite.DofHandler` and forwards most property
-accesses and interface methods to it. The non-trivial part is `close!`, which distributes
-the global dofs according to the globally numbered spline control points rather than
-Lagrange nodes. This is handled by the internal `_close_subdofhandler_iga!` routine, which:
+The [`IGADofHandler`](@ref) wraps a `Ferrite.DofHandler` and forwards most calls to it, but
+owns its `SubDofHandler`s so that `sdh.dh` is the IGA handler. `close!` numbers the dofs by
+control point rather than by Lagrange node: each field gets one global block, shared by all
+subdofhandlers, with the components interleaved per control point. Several subdofhandlers
+are only needed on hierarchical patches, where they group elements by active-function count.
 
-1. iterates over the field interpolations of each subdofhandler,
-2. queries the active basis functions per knot span from G+Smo,
-3. interleaves the components for vector-valued (`VectorizedInterpolation`) fields, and
-4. records per-field offsets in `field_offsets` so that fields can later be addressed inside
-   the global solution vector.
-
-The custom `CellCache`/`CellIterator`/`celldofs!` methods in `iterators.jl` make sure the
-Ferrite iteration protocol picks up the IGA connectivity.
+`allocate_matrix` builds the sparsity pattern from the cell dofs itself, since Ferrite's
+version is typed on the concrete `DofHandler`. The `CellCache`/`CellIterator` methods in
+`iterators.jl` make Ferrite's iteration use the IGA connectivity.
 
 !!! note
-    Only a single subdofhandler / cell type is currently supported, and the implementation
-    reaches into a number of `DofHandler` internals. A cleaner approach would be to
-    generalize Ferrite's dof distribution rather than to reimplement it here.
+    The implementation reaches into a number of `DofHandler` internals. A cleaner approach
+    would be to generalize Ferrite's dof distribution rather than reimplement it here.
 
 ## Boundary conditions
 
-Neumann boundary conditions use the standard Ferrite `FacetValues` / `FacetIterator`
-workflow together with the on-demand facet sets described above.
+Neumann conditions need nothing special. Ferrite's `Dirichlet` on a facet set does not work,
+since it evaluates the condition at facet dof positions, which spline bases do not have.
+Instead conditions are put on the control points of a parametric side:
 
-The standard `ConstraintHandler` / `Dirichlet` workflow is however not yet supported, since
-it evaluates the prescribed function at facet dof positions, which spline bases do not
-provide. Homogeneous Dirichlet conditions along whole parametric edges are therefore
-applied with the [`fixEdge!`](@ref) helper. It queries the boundary control points of a
-field from G+Smo and calls `Ferrite.add_prescribed_dof!` for each of them. Extending this to
-inhomogeneous and more general boundary conditions is future work.
+- [`fixEdge!`](@ref) calls `Ferrite.add_prescribed_dof!` for the boundary control points.
+- [`prescribeEdge!`](@ref) and `add!(ch, ::Dirichlet)` on a set of control points store the
+  condition like a Ferrite node-set condition, so `update!` computes the values.
+- The shell form of [`fixEdgeTangent!`](@ref) collects its conditions until `close!(ch)`,
+  where those meeting at a corner are combined into affine constraints.
 
 ## Postprocessing and L2 projection
 
-Unlike the rest of the package, the export path deliberately does **not** hook into
-Ferrite's internals. A spline patch cannot be written to a VTK file, so instead of
-specializing Ferrite's grid-writing machinery, FerriteGismo hands the writers the
-[export mesh](@ref "The export mesh") — a plain Ferrite `Grid` they already understand —
-and evaluates the spline fields at its nodes with
-[`evaluateAtExportNodes`](@ref). Everything is then written through the public
-`VTKGridFile`/`VTKHDFGridFile` constructors and `Ferrite.write_node_data`.
-
-What FerriteGismo adds are methods of *public* Ferrite functions dispatched on its own
-types — `VTKGridFile`, `VTKHDFGridFile`, `write_solution`, `write_projection`,
-`evaluate_at_grid_nodes`, `L2Projector`, `project` — so downstream code that writes
-`write_solution(vtk, dh, u)` keeps working unchanged.
+The export path stays on Ferrite's public API: the writers get the
+[export mesh](@ref "The export mesh"), a plain Ferrite `Grid`, and the spline fields are
+evaluated at its nodes with [`evaluateAtExportNodes`](@ref). FerriteGismo only adds methods of
+public functions (`VTKGridFile`, `write_solution`, `write_projection`,
+`evaluate_at_grid_nodes`, `L2Projector`, `project`) for its own types.
 
 The exact export, [`VTKBezierFile`](@ref), cannot go through an export mesh: it writes the
 Bézier cells with WriteVTK directly. The extraction operator of each knot span is computed
@@ -157,12 +121,9 @@ from G+Smo evaluations at points inside the span, which covers B-spline, NURBS a
 hierarchical bases alike. For the point data it reuses `Ferrite._vtk_write_node_data`, which
 converts tensors to their Paraview components.
 
-The projector for quadrature-point data (e.g. stresses) is likewise self-contained: it
-assembles the spline mass matrix with `CellValues`, `allocate_matrix` and
-`start_assemble`/`assemble!`, factorizes it once, and solves for the control-point values
-of each tensor component. The only internal it still touches is the abstract type
-`Ferrite.AbstractProjector`, which it subtypes so that code constrained on that type (as
-Ferrite's own projector is) accepts it.
+The L2 projector assembles and factorizes the spline mass matrix once and solves for each
+tensor component. It subtypes the internal `Ferrite.AbstractProjector` so that code
+constrained on that type accepts it.
 
 ```@docs
 FerriteGismo.L2ProjectorIGA

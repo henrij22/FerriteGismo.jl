@@ -59,7 +59,7 @@ function Ferrite.FacetIterator(
         grid::IGAGrid, set::Ferrite.AbstractVecOrSet{FacetIndex},
         flags::UpdateFlags = UpdateFlags()
     )
-    return Ferrite.FacetIterator(Ferrite.FacetCache(grid, flags), set)
+    return Ferrite.FacetIterator(Ferrite.FacetCache(grid, flags), Ferrite.convert_to_orderedset(set))
 end
 
 # ==============================================================================

@@ -92,14 +92,11 @@ Ferrite.task_local_copy(ip::IGAInterpolation) = ip
 Ferrite.task_local_copy(ip::VectorizedInterpolation{<:Any, <:Any, <:Any, <:IGAInterpolation}) = ip
 
 #=
-`qr_points` are already remapped into parameter space by `reinit!`, not the canonical
-[-1, 1]^d reference-cell points the name suggests.
+Despite the name, `qr_points` are points in parameter space, mapped there by `reinit!`.
 
-`_nActiveAt` guards the one call that is not remapped: Ferrite precomputes at the raw
-reference points when constructing `CellValues`, where a hierarchical basis may have fewer
-actives than this subdomain's `nbasefuns`. Those values are overwritten by `reinit!` before
-use, so they only have to not overrun the G+Smo result; after `reinit!` the count matches
-exactly and nothing is padded.
+The exception is the `CellValues` constructor, where Ferrite evaluates at the raw reference
+points. A hierarchical basis may have fewer actives there than `nbasefuns`, so the rest is
+zero-padded. These values are overwritten by the first `reinit!` anyway.
 =#
 _nActiveAt(raw, ip) = min(Int(TinyGismo.rows(raw)), getnbasefunctions(ip))
 

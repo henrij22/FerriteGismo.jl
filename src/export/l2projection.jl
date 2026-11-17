@@ -1,10 +1,8 @@
 # ==============================================================================
 # L2 projection onto the spline space
 #
-# Quadrature point data (stresses, …) is discontinuous and has to be projected onto the
-# spline space before it can be visualized. This is a self-contained implementation on
-# top of the public Ferrite API — `CellValues`, `allocate_matrix`, `start_assemble` /
-# `assemble!` — rather than a specialization of Ferrite's `L2Projector` internals.
+# Projects quadrature point data (stresses, …) onto the spline space for visualization.
+# Written against the public Ferrite API rather than Ferrite's `L2Projector` internals.
 # ==============================================================================
 
 """
@@ -64,7 +62,7 @@ function Ferrite.L2Projector(
     length(set) == getncells(grid) ||
         error("An IGAGrid is a single patch: the L2Projector has to cover all of its cells")
 
-    ip_fun = ip isa VectorizedInterpolation ? ip.ip : ip
+    ip_fun = _scalarInterpolation(ip)
     ip_geo = _geometryInterpolation(grid, ip_fun)
 
     dh = IGADofHandler(grid)
@@ -74,6 +72,9 @@ function Ferrite.L2Projector(
     M = _assembleMassMatrix(dh, ip_fun, ip_geo, qr_lhs)
     return L2ProjectorIGA(cholesky(Symmetric(M)), dh, ip_fun, ip_geo, qr_lhs)
 end
+
+_scalarInterpolation(ip::IGAInterpolation) = ip
+_scalarInterpolation(ip::VectorizedInterpolation) = ip.ip
 
 function _assembleMassMatrix(dh::IGADofHandler, ip, ip_geo, qr::QuadratureRule)
     cv = CellValues(qr, ip, ip_geo; update_gradients = false)

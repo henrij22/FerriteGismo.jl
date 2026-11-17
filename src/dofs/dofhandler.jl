@@ -65,10 +65,8 @@ function Ferrite.ndofs_per_cell(dh::IGADofHandler, cell::Int)
 end
 
 #=
-Mirrors `Ferrite.add!(::DofHandler, ...)` but creates the `SubDofHandler` on the
-`IGADofHandler` itself. Delegating to the wrapped handler (as this used to do) would bind
-the `SubDofHandler` to the plain `Ferrite.DofHandler`, so `sdh.dh` would hand back an
-unwrapped handler and the IGA `CellCache`/`celldofs!` specializations would be bypassed.
+Creates the `SubDofHandler` on the `IGADofHandler` itself. On the wrapped handler, `sdh.dh`
+would be the plain `Ferrite.DofHandler` and the IGA `CellCache`/`celldofs!` would be bypassed.
 =#
 function Ferrite.add!(dh::IGADofHandler, name::Symbol, ip::Interpolation)
     @assert !Ferrite.isclosed(dh)
@@ -90,8 +88,7 @@ function Ferrite.add!(dh::IGADofHandler, name::Symbol, ip::Interpolation)
     return dh
 end
 
-# `find_field`/`getfieldinterpolation` iterate `dh.subdofhandlers`, which now live on the
-# IGA handler — the wrapped `Ferrite.DofHandler` has none.
+# The subdofhandlers live on the IGA handler, the wrapped `Ferrite.DofHandler` has none
 function Ferrite.find_field(dh::IGADofHandler, field_name::Symbol)
     for (sdh_idx, sdh) in pairs(dh.subdofhandlers)
         field_idx = Ferrite._find_field(sdh, field_name)
@@ -248,12 +245,8 @@ function _collect_cell_dofs_iga!(
     return cellDofs
 end
 
-#=
-Ferrite's `allocate_matrix`/`init_sparsity_pattern`/`add_cell_entries!` are all typed on the
-concrete `Ferrite.DofHandler` and read `dh.subdofhandlers`, so they cannot be reached by
-forwarding to the wrapped handler (which owns none) nor by dispatching on the IGA handler.
-The pattern is therefore assembled here directly from the cell dofs.
-=#
+# Ferrite's sparsity pattern functions are typed on the concrete `Ferrite.DofHandler`, and the
+# wrapped one owns no subdofhandlers, so the pattern is built here from the cell dofs.
 function _cellSparsityPattern(dh::IGADofHandler)
     @assert Ferrite.isclosed(dh)
     n = ndofs(dh)

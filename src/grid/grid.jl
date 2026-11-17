@@ -100,10 +100,8 @@ parametric direction `dir`.
 """
 function numElementsPerDirection(grid::IGAGrid{sdim, 2}, dir::Integer) where {sdim}
     @argcheck !isHierarchical(grid) "a hierarchical grid has no per-direction element count: its elements do not form a tensor-product lattice. Use `getncells(grid)` for the total."
-    # Counted from the knot spans rather than asked of the basis: for a patch whose knots
-    # were inserted non-uniformly, `TinyGismo.numElements(basis, dir)` does not report the
-    # number of spans of that direction, and the product over the directions then
-    # disagrees with `getncells`.
+    # Not `TinyGismo.numElements(basis, dir)`: after non-uniform knot insertion it does not
+    # match the number of spans, and so not `getncells`.
     return length(breakpoints(grid, dir)) - 1
 end
 
