@@ -63,7 +63,7 @@ function fixEdge!(
         # Interleaved dof numbering u1x, u1y, u2x, u2y, ...
         for c in comps
             dof = offset + ncomp * (p - 1) + c
-            Ferrite.add_prescribed_dof!(ch, dof, 0.0)
+            add!(ch, AffineConstraint(dof, Pair{Int, Float64}[], 0.0))
         end
     end
     return nothing
@@ -232,7 +232,7 @@ function fixEdgeTangent!(
     offset = fieldOffset(dh, field_name)
     _, inward = _edgeAndInwardControlPoints(dh, side, field_name)
     for p in inward, c in comps
-        Ferrite.add_prescribed_dof!(ch, offset + ncomp * (p - 1) + c, 0.0)
+        add!(ch, AffineConstraint(offset + ncomp * (p - 1) + c, Pair{Int, Float64}[], 0.0))
     end
     return nothing
 end

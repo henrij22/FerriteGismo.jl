@@ -109,7 +109,7 @@ fixEdgeTangent!(shellDh, shellCh, :left, (:u,))   # or three scalar fields (:ux,
 close!(shellCh)
 K = allocate_matrix(shellDh, shellCh)
 
-count(!isnothing, shellCh.dofcoefficients)
+count(c -> !(isnothing(c) || isempty(c)), shellCh.dofcoefficients)
 ```
 
 Where two clamped sides meet, both edges have to be held and their prescribed motions must
