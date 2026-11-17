@@ -281,38 +281,24 @@ function Ferrite.close!(ch::ConstraintHandler{<:IGADofHandler})
 end
 
 #=
-Gauss-Jordan elimination of the conditions of one control point over its free dofs, so that no
-slave is also the master of another constraint. Prescribed edge dofs stay masters and Ferrite
-moves them into the inhomogeneity.
-
-A row without a free coefficient left is dropped. That happens at a corner where both sides have
-the same normal; the dropped condition then only holds if both edges move alike along n.
-If neither edge at a corner is held, an edge dof of one side ends up as slave and master, which
-Ferrite rejects.
+Ferrite picks the constrained dof of each condition and untangles them in `close!`, but rejects
+conditions without a free dof and linearly dependent ones. Both occur at corners: the control
+point next to a side can lie on a held edge, and two sides with the same normal give the same
+condition, which then only holds if both edges move alike along n.
 =#
 function _addNormalConstraints!(ch::ConstraintHandler, conditions)
-    tolerance = sqrt(eps())
-    dofs = unique(first.(reduce(vcat, conditions)))
-    rows = zeros(length(conditions), length(dofs))
-    for (r, condition) in enumerate(conditions), (dof, coefficient) in condition
-        rows[r, findfirst(==(dof), dofs)] += coefficient
-    end
-    free = [j for j in eachindex(dofs) if !haskey(ch.dofmapping, dofs[j])]
-    pivots = Tuple{Int, Int}[]
-    for r in axes(rows, 1)
-        isempty(free) && break
-        value, i = findmax(j -> abs(rows[r, j]), free)
-        value > tolerance || continue
-        p = popat!(free, i)
-        rows[r, :] ./= rows[r, p]
-        for q in axes(rows, 1)
-            q == r || (rows[q, :] .-= rows[q, p] .* rows[r, :])
+    freeDofs = unique(first(e) for c in conditions for e in c if !haskey(ch.dofmapping, first(e)))
+    rows = zeros(0, length(freeDofs))
+    for condition in conditions
+        row = zeros(1, length(freeDofs))
+        for (dof, coefficient) in condition
+            j = findfirst(==(dof), freeDofs)
+            isnothing(j) || (row[j] += coefficient)
         end
-        push!(pivots, (r, p))
-    end
-    for (r, p) in pivots
-        masters = Pair{Int, Float64}[dofs[j] => -rows[r, j] for j in eachindex(dofs) if j != p && abs(rows[r, j]) > tolerance]
-        add!(ch, AffineConstraint(dofs[p], masters, 0.0))
+        candidate = [rows; row]
+        rank(candidate; atol = sqrt(eps())) > size(rows, 1) || continue
+        rows = candidate
+        add!(ch, AffineConstraint(condition, 0.0))
     end
     return ch
 end
