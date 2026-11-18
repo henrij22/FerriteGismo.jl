@@ -27,10 +27,10 @@ C++ library. FerriteGismo re-exports both `Ferrite` and `TinyGismo`.
 ## Grid and cells
 
 An [`IGAGrid`](@ref) stores the G+Smo geometry, the control points as Ferrite `Node`s, one
-[`FerriteGismo.IGACell`](@ref) per non-empty knot span, and a cached
-[`FerriteGismo.KnotSpanWrapper`](@ref) for each knot span. Each cell holds the indices of
-the basis functions that are *active* on its knot span; these take the role of the cell
-"nodes" and are the basis for the connectivity used during assembly.
+[`FerriteGismo.IGACell`](@ref) per non-empty knot span. Each cell holds its
+[`FerriteGismo.KnotSpanWrapper`](@ref) and the indices of the basis functions that are
+*active* on that knot span; these take the role of the cell "nodes" and are the basis for
+the connectivity used during assembly.
 
 The reference dimension `rdim` (parametric dimension) and spatial dimension `sdim` are kept
 as separate type parameters so that embedded geometries (`rdim < sdim`) can be represented,
@@ -66,11 +66,11 @@ span (`FerriteGismo.ref_to_param`) before the basis is evaluated through:
 
 ### Geometry mapping
 
-`FerriteGismo.IGAMapping` specializes `Ferrite.calculate_mapping` and
-`Ferrite.apply_mapping!` to compute the Jacobian (and the Hessian where available) and push
-the gradients to physical space. Since the Jacobian is taken with respect to the parametric
-coordinates, `detJdV` is additionally scaled by the knot-span area relative to the reference
-element.
+The mapping is Ferrite's `IdentityMapping`, so Jacobian, Hessian (also for embedded
+elements) and the push-forward come from Ferrite. Only
+`Ferrite.reinit!(::CellValues, ::CellCache{<:Any, <:IGAGrid})` is specialized: it maps the
+quadrature points into the knot span, re-evaluates the basis, calls Ferrite's generic
+`reinit!` and scales `detJdV` by the knot-span area relative to the reference element.
 
 ### Facet values
 
