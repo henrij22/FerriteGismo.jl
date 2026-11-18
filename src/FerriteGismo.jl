@@ -19,6 +19,9 @@ using TinyGismo: gsBasis, gsGeometry
 @reexport using Ferrite
 @reexport using TinyGismo
 
+# Both Ferrite and TinyGismo export `refine!`; resolve in favor of the IGA version
+using TinyGismo: refine!
+
 # ==============================================================================
 # MODULE STRUCTURE
 # ==============================================================================
