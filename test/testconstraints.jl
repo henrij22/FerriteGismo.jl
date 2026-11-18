@@ -340,8 +340,8 @@ end
     end
 
     # Corner points get a condition from each side; on the tilted plane the two coincide and one is dropped
-    @test count(!isnothing, clampedShell(first(surfaces[1]))[2].dofcoefficients) == 8
-    @test count(!isnothing, clampedShell(first(surfaces[2]))[2].dofcoefficients) == 12
+    @test count(c -> !(isnothing(c) || isempty(c)), clampedShell(first(surfaces[1]))[2].dofcoefficients) == 8
+    @test count(c -> !(isnothing(c) || isempty(c)), clampedShell(first(surfaces[2]))[2].dofcoefficients) == 12
     @test clampedShell(first(surfaces[2]); order = reverse(sides))[2].dofcoefficients == clampedShell(first(surfaces[2]))[2].dofcoefficients
 
     # Both forms on one shell, sharing corners

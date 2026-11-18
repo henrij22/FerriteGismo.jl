@@ -101,11 +101,12 @@ Neumann conditions need nothing special. Ferrite's `Dirichlet` on a facet set do
 since it evaluates the condition at facet dof positions, which spline bases do not have.
 Instead conditions are put on the control points of a parametric side:
 
-- [`fixEdge!`](@ref) calls `Ferrite.add_prescribed_dof!` for the boundary control points.
+- [`fixEdge!`](@ref) adds an `AffineConstraint` without masters for each boundary control-point dof.
 - [`prescribeEdge!`](@ref) and `add!(ch, ::Dirichlet)` on a set of control points store the
   condition like a Ferrite node-set condition, so `update!` computes the values.
 - The shell form of [`fixEdgeTangent!`](@ref) collects its conditions until `close!(ch)`,
-  where those meeting at a corner are combined into affine constraints.
+  drops those without a free dof or dependent on another one at the same corner, and lets
+  Ferrite pick the constrained dof of the rest.
 
 ## Postprocessing and L2 projection
 
