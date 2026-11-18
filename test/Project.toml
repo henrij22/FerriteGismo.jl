@@ -1,4 +1,5 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 FerriteGismo = "a548586d-644c-43c2-b402-969e06ddf6f5"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
@@ -10,5 +11,6 @@ TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 FerriteGismo = { path = ".." }
 
 [compat]
+Aqua = "0.8"
 TestItemRunner = "1"
 TestItems = "1"

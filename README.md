@@ -8,6 +8,7 @@
   <a href="https://henrij22.github.io/FerriteGismo.jl/dev"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Docs dev"></a>
   <a href="https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml"><img src="https://github.com/henrij22/FerriteGismo.jl/actions/workflows/CI.yml/badge.svg" alt="Build status"></a>
   <a href="https://codecov.io/gh/henrij22/FerriteGismo.jl"><img src="https://codecov.io/gh/henrij22/FerriteGismo.jl/graph/badge.svg?token=IoLnf88JWA" alt="codecov"></a>
+  <a href="https://github.com/JuliaTesting/Aqua.jl"><img src="https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg" alt="Aqua QA"></a>
   <a href="https://github.com/fredrikekre/Runic.jl"><img src="https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black" alt="Code style: Runic"></a>
 </p>
 
